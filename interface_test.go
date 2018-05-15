@@ -71,9 +71,7 @@ func (c *testCat) serveChannel() {
 			// the committed entry is nil, that means we need to reload the
 			// data structure from a consistent snapshot
 			if data == nil {
-				// TODO reload map from snapshot
 				bites, err := c.snapshotConsumer()
-<<<<<<< HEAD
 				if err != nil {
 					log.Errorf("Error getting snapshot: %s", err.Error())
 				}
@@ -85,12 +83,6 @@ func (c *testCat) serveChannel() {
 				}
 
 				c.data = tcData.M
-=======
-				tcData := &pb.TestCat{}
-				proto.Unmarshal(bites, tcData)
-				c.data = tcData.M
-				log.Infof("%d %s", len(bites), err)
->>>>>>> 11afee7bc178e6b0e2f004344ac580ad4468ad46
 			}
 
 			newOp := &kv{}
