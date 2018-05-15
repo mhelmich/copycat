@@ -1,0 +1,171 @@
+/*
+ * Copyright 2018 Marco Helmich
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package copycat
+
+import (
+	"context"
+	"time"
+
+	"github.com/coreos/etcd/raft"
+	"github.com/coreos/etcd/raft/raftpb"
+	"github.com/mhelmich/copycat/pb"
+	log "github.com/sirupsen/logrus"
+)
+
+func newRaftBackendWithConfig(config *CopyCatConfig) (chan<- msgAndStream, error) {
+	proposeChan := make(chan []byte)
+	proposeConfChangeChan := make(chan raftpb.ConfChange)
+	commitChan := make(chan []byte)
+	errorChan := make(chan error)
+
+	rb := &raftBackend{
+		raftId:                randomRaftId(),
+		proposeChan:           proposeChan,
+		proposeConfChangeChan: proposeConfChangeChan,
+		commitChan:            commitChan,
+		errorChan:             errorChan,
+		stopChan:              make(chan struct{}),
+	}
+
+	go rb.startRaft()
+	return nil, nil
+}
+
+func newRaftBackendWithId(newRaftId uint64) (*raftBackend, error) {
+	proposeChan := make(chan []byte)
+	proposeConfChangeChan := make(chan raftpb.ConfChange)
+	commitChan := make(chan []byte)
+	errorChan := make(chan error)
+
+	rb := &raftBackend{
+		raftId:                newRaftId,
+		proposeChan:           proposeChan,
+		proposeConfChangeChan: proposeConfChangeChan,
+		commitChan:            commitChan,
+		errorChan:             errorChan,
+		stopChan:              make(chan struct{}),
+	}
+
+	go rb.startRaft()
+	return rb, nil
+}
+
+type raftBackend struct {
+	raftId    uint64    // cluster-wide unique raft ID
+	peers     []pb.Peer // raft peer URLs
+	raftNode  raft.Node // the actual raft node
+	transport transport
+	store     store
+
+	proposeChan           <-chan []byte            // proposed changes to the data of this raft group
+	proposeConfChangeChan <-chan raftpb.ConfChange // proposed changes to the raft group topology
+	commitChan            chan<- []byte            // changes committed to this raft group
+	errorChan             chan<- error             // errors while processing proposed changes
+
+	confState raftpb.ConfState
+	logger    *log.Entry    // the logger to use by this struct
+	stopChan  chan struct{} // signals this raft backend should shut down (only used internally)
+}
+
+func (rb *raftBackend) startRaft() {
+	c := &raft.Config{
+		ID:              rb.raftId,
+		ElectionTick:    10,
+		HeartbeatTick:   1,
+		Storage:         rb.store,
+		MaxSizePerMsg:   1024 * 1024 * 1024, // 1 GB (!!!)
+		MaxInflightMsgs: 256,
+		Logger:          rb.logger,
+	}
+
+	rpeers := make([]raft.Peer, len(rb.peers))
+	for i := range rpeers {
+		rpeers[i] = raft.Peer{
+			ID:      rb.peers[i].Id,
+			Context: []byte(rb.peers[i].RaftAddress),
+		}
+	}
+	rb.raftNode = raft.StartNode(c, rpeers)
+
+	go rb.serveProposalChannels()
+	go rb.runRaftStateMachine()
+}
+
+// this is called from the raft transport server
+// every time this raft node receives a message, this code path is invoked
+// to kick off the raft state machine
+func (rb *raftBackend) step(ctx context.Context, msg raftpb.Message) error {
+	return rb.raftNode.Step(ctx, msg)
+}
+
+func (rb *raftBackend) serveProposalChannels() {
+}
+
+func (rb *raftBackend) runRaftStateMachine() {
+	defer rb.store.close()
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	// event loop on raft state machine updates
+	for {
+		select {
+		case <-ticker.C:
+			rb.raftNode.Tick()
+
+		// store raft entries and hard state, then publish changes over commit channel
+		case rd := <-rb.raftNode.Ready():
+			rb.logger.Debugf("ID: %d Hardstate: %v Entries: %v Snapshot: %v Messages: %v Committed: %v", rb.raftId, rd.HardState, rd.Entries, rd.Snapshot, rd.Messages, rd.CommittedEntries)
+			rb.store.saveEntriesAndState(rd.Entries, rd.HardState)
+
+			if !raft.IsEmptySnap(rd.Snapshot) {
+				if err := rb.store.saveSnap(rd.Snapshot); err != nil {
+					rb.logger.Errorf("Couldn't save snapshot: %s", err.Error())
+				}
+
+				// rc.publishSnapshot(rd.Snapshot)
+			}
+
+			rb.transport.sendMessages(rd.Messages)
+			if ok := rb.publishEntries(rb.entriesToApply(rd.CommittedEntries)); !ok {
+				rb.stop()
+				return
+			}
+			// rc.maybeTriggerSnapshot()
+			rb.raftNode.Advance()
+
+		case <-rb.stopChan:
+			rb.stop()
+			return
+		}
+	}
+}
+
+func (rb *raftBackend) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry) {
+	return
+}
+
+func (rb *raftBackend) publishEntries(ents []raftpb.Entry) bool {
+	return false
+}
+
+func (rb *raftBackend) stop() {
+	rb.transport.stop()
+	close(rb.commitChan)
+	close(rb.errorChan)
+	rb.raftNode.Stop()
+}

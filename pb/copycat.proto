@@ -1,0 +1,113 @@
+/*
+ * Copyright 2018 Marco Helmich
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto3";
+
+package pb;
+
+// raft proto also pulls this in
+// make sure we import it the same way as raft does
+import "gogoproto/gogo.proto";
+import "github.com/coreos/etcd/raft/raftpb/raft.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.goproto_enum_prefix_all) = false;
+
+//////////////////////////////////////////
+////////////////////////////////
+// SECTION FOR GOSSIP QUERIES
+
+enum GossipQueryNames {
+  RaftIdQuery = 0;
+  DataStructureIdQuery = 1;
+}
+
+message RaftIdQueryRequest {
+  uint64 RaftId = 1;
+}
+
+message RaftIdQueryResponse {
+  uint64 RaftId = 1;
+  string Address = 2;
+}
+
+message DataStructureIdRequest {
+  uint64 DataStructureId = 1;
+}
+
+message DataStructureIdResponse {
+  uint64 DataStructureId = 1;
+  uint64 RaftId = 2;
+  string Address = 3;
+}
+
+//////////////////////////////////////////
+////////////////////////////////
+// SECTION FOR CLUSTER METADATA
+
+message Peer {
+  uint64 id = 1;
+  string raftAddress = 2;
+}
+
+message HostedItems {
+  map<uint64,uint64> DataStructureToRaftMapping = 1;
+}
+
+//////////////////////////////////////////
+////////////////////////////////
+// SECTION FOR THE RAFT TRANSPORT
+
+enum TransportError {
+  NoError = 0;
+}
+
+service RaftTransportService {
+  rpc Send(stream SendReq) returns (stream SendResp) {}
+}
+
+message SendReq {
+  raftpb.Message message = 1;
+}
+
+message SendResp {
+  TransportError error = 1;
+}
+
+//////////////////////////////////////////
+////////////////////////////////
+// SECTION FOR THE COPYCAT SERVICE
+
+service CopyCatService {
+  rpc StartRaft(StartRaftRequest) returns (StartRaftResponse) {}
+  rpc StopRaft(StopRaftRequest) returns (StopRaftResponse) {}
+}
+
+message StartRaftRequest {}
+
+message StartRaftResponse {
+  uint64 raftId = 1;
+  string raftAddress = 2;
+}
+
+message StopRaftRequest {
+  uint64 raftId = 1;
+}
+
+message StopRaftResponse {}
