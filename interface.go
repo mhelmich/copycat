@@ -68,6 +68,10 @@ func NewCopyCat(config *CopyCatConfig) (CopyCat, error) {
 
 // CopyCat is the struct consumers need to create in order to create distributed data structures.
 type CopyCat interface {
+	// ConnectToDataStructure allows the consumer to connect to a data structure identified by id.
+	// In addition to that a SnapshotProvider needs to be passed in to enable CopyCat to create consistent snapshots.
+	// CopyCat responds with a write only proposal channel, a read-only commit channel, a read-only error channel, and
+	// a SnapshotConsumer that is used to retrieve consistent snapshots from CopyCat.
 	ConnectToDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer)
 	Shutdown()
 }

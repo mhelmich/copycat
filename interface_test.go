@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/mhelmich/copycat/pb"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -66,10 +68,22 @@ func (c *testCat) serveChannel() {
 				return
 			}
 
+			// the committed entry is nil, that means we need to reload the
+			// data structure from a consistent snapshot
 			if data == nil {
 				// TODO reload map from snapshot
 				bites, err := c.snapshotConsumer()
-				log.Infof("%d %s", len(bites), err)
+				if err != nil {
+					log.Errorf("Error getting snapshot: %s", err.Error())
+				}
+
+				tcData := &pb.TestCat{}
+				err = proto.Unmarshal(bites, tcData)
+				if err != nil {
+					log.Errorf("Error unmarshaling snapshot: %s", err.Error())
+				}
+
+				c.data = tcData.M
 			}
 
 			newOp := &kv{}
@@ -112,5 +126,5 @@ func (c *testCat) put(key, value string) {
 }
 
 func (c *testCat) providerSnapshot() ([]byte, error) {
-	return json.Marshal(c.data)
+	return json.Marshal(&pb.TestCat{M: c.data})
 }
