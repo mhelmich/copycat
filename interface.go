@@ -45,34 +45,43 @@ func DefaultConfig() *CopyCatConfig {
 	}
 }
 
+// CopyCatConfig is the public configuration struct that needs to be passed into the constructor function.
 type CopyCatConfig struct {
-	CopyCatPort    int
+	// Port of the CopyCat server. The server runs the management interface and the raft state machine.
+	CopyCatPort int
+	// Directory under which this CopyCat instance will put all data it's collecting.
 	CopyCatDataDir string
+	// Simple address of at least one CopyCat peer to contact. The format is "<machine>:<copycat_port>".
+	// If you leave this empty or nil, this node will start a brandnew cluster.
 	PeersToContact []string
 
+	// Popluated internally.
 	hostname   string
 	gossipPort int
 	logger     *log.Entry
 }
 
+// NewCopyCat initiates and starts the copycat framework.
 func NewCopyCat(config *CopyCatConfig) (CopyCat, error) {
 	return newCopyCat(config)
 }
 
-// CopyCat is the struct the consumer needs to create
-// in order to create distributed data structures
+// CopyCat is the struct consumers need to create in order to create distributed data structures.
 type CopyCat interface {
+	// id is the unique handle to a data structure.
+	// ds is the data structure instance that CopyCat will keep up-to-date.
 	LoadDataStructure(id uint64, ds DataStructure) (chan<- []byte, <-chan []byte, <-chan error)
 	Shutdown()
 }
 
-// DataStructure Every data structure that uses CopyCat needs to
-// implement this interface
+// DataStructure - Every data structure that uses CopyCat needs to implement this interface.
+// It allows CopyCat to keep this data sturcture up-to-date with all committed changes.
 type DataStructure interface {
 	GetSnapshot() ([]byte, error)
 	SetSnapshot([]byte) error
 }
 
+// Internal interface.
 type transport interface {
 	addPeer(id uint64, addr string) error
 	removePeer(id uint64)
@@ -81,6 +90,7 @@ type transport interface {
 	stop()
 }
 
+// Internal interface.
 type store interface {
 	raft.Storage
 	saveConfigState(confState raftpb.ConfState) error

@@ -36,9 +36,14 @@ const (
 	serfMDKeyHostedItems = "ds_to_raft"
 )
 
+// Membership uses serf under the covers to gossip metadata about the cluster.
+// This includes the presence of nodes in the cluster, the raft groups in the cluster and their location,
+// the data structures in the cluster and their location.
 type membership struct {
 	serf *serf.Serf
 
+	// these maps cache the serf state locally
+	// you can always fall back to querying the cluster if you want
 	memberIdToTags           map[uint64]map[string]string
 	raftIdToAddress          map[uint64]string
 	dataStructureIdToRaftIds map[uint64]map[uint64]bool
@@ -232,7 +237,7 @@ func (m *membership) addDsToRaftIdMapping(dsId uint64, raftId uint64) error {
 		return err
 	}
 
-	// protobuf will optimize empty maps away and provoke a NPE here
+	// protobuf will optimize empty maps away and provoke a seg fault here
 	if hi.DataStructureToRaftMapping == nil {
 		hi.DataStructureToRaftMapping = make(map[uint64]uint64)
 	}

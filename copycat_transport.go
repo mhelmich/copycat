@@ -65,6 +65,9 @@ type copyCatTransport struct {
 
 func (t *copyCatTransport) StartRaft(ctx context.Context, in *pb.StartRaftRequest) (*pb.StartRaftResponse, error) {
 	newRaftId := randomRaftId()
+	// A raft backend is started in join mode but without specifying other peers.
+	// It will just sit there and do nothing until a leader with higher term contacts it.
+	// After that the new backend will try to respond to the messages it has been receiving and join the cluster.
 	backend, err := newRaftBackendWithId(newRaftId)
 	if err != nil {
 		t.logger.Errorf("Can't create raft backend: %s", err.Error())
@@ -98,6 +101,7 @@ func (t *copyCatTransport) Send(stream pb.RaftTransportService_SendServer) error
 
 		backend, ok := t.raftBackends[request.Message.To]
 		if ok {
+			// invoke the raft state machine
 			err := backend.step(stream.Context(), *request.Message)
 			if err == nil {
 				stream.Send(&pb.SendResp{
@@ -130,9 +134,7 @@ func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) {
 			t.logger.Errorf("Can't get stream: %s", err.Error())
 		}
 
-		err = stream.Send(&pb.SendReq{
-			Message: &msg,
-		})
+		err = stream.Send(&pb.SendReq{Message: &msg})
 		if err != nil {
 			t.logger.Errorf("Can't send on stream: %s", err.Error())
 		}
