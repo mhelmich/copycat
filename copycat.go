@@ -16,7 +16,9 @@
 
 package copycat
 
-import log "github.com/sirupsen/logrus"
+import (
+	log "github.com/sirupsen/logrus"
+)
 
 func newCopyCat(config *CopyCatConfig) (*copyCatImpl, error) {
 	m, err := newMembership(config)
@@ -43,8 +45,8 @@ type copyCatImpl struct {
 	logger     *log.Entry
 }
 
-func (c *copyCatImpl) LoadDataStructure(id uint64, ds DataStructure) (chan<- []byte, <-chan []byte, <-chan error) {
-	return nil, nil, nil
+func (c *copyCatImpl) ConnectToDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer) {
+	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
 }
 
 func (c *copyCatImpl) Shutdown() {

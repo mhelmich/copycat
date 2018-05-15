@@ -24,13 +24,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/coreos/etcd/raft/raftpb"
-	"github.com/mhelmich/copycat/pb"
 )
-
-type msgAndStream struct {
-	stream pb.RaftTransportService_SendServer
-	msg    *raftpb.Message
-}
 
 // converts bytes to an unsinged 64 bit integer
 func bytesToUint64(b []byte) uint64 {

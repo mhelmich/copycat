@@ -68,7 +68,7 @@ func (t *copyCatTransport) StartRaft(ctx context.Context, in *pb.StartRaftReques
 	// A raft backend is started in join mode but without specifying other peers.
 	// It will just sit there and do nothing until a leader with higher term contacts it.
 	// After that the new backend will try to respond to the messages it has been receiving and join the cluster.
-	backend, err := newRaftBackendWithId(newRaftId)
+	backend, err := newRaftBackendWithId(newRaftId, t.config)
 	if err != nil {
 		t.logger.Errorf("Can't create raft backend: %s", err.Error())
 		return nil, err
@@ -104,14 +104,10 @@ func (t *copyCatTransport) Send(stream pb.RaftTransportService_SendServer) error
 			// invoke the raft state machine
 			err := backend.step(stream.Context(), *request.Message)
 			if err == nil {
-				stream.Send(&pb.SendResp{
-					Error: pb.NoError,
-				})
+				stream.Send(&pb.SendResp{Error: pb.NoError})
 			} else {
 				t.logger.Errorf("Invoking raft backend with id [%d] failed: %s", request.Message.To, err.Error())
-				stream.Send(&pb.SendResp{
-					Error: pb.NoError,
-				})
+				stream.Send(&pb.SendResp{Error: pb.NoError})
 			}
 		} else {
 			t.logger.Errorf("Can't find processor for raft id %d", request.Message.To)
@@ -148,6 +144,17 @@ func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) {
 
 		defer stream.CloseSend()
 	}
+}
+
+func (t *copyCatTransport) consumeChannels(rb *raftBackend) {
+	go func() {
+		for {
+			select {
+			case <-rb.commitChan:
+			case <-rb.errorChan:
+			}
+		}
+	}()
 }
 
 func (t *copyCatTransport) stop() {

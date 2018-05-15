@@ -68,11 +68,17 @@ func NewCopyCat(config *CopyCatConfig) (CopyCat, error) {
 
 // CopyCat is the struct consumers need to create in order to create distributed data structures.
 type CopyCat interface {
-	// id is the unique handle to a data structure.
-	// ds is the data structure instance that CopyCat will keep up-to-date.
-	LoadDataStructure(id uint64, ds DataStructure) (chan<- []byte, <-chan []byte, <-chan error)
+	ConnectToDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer)
 	Shutdown()
 }
+
+// SnapshotProviders are used to transport a serialized representation
+// of a data structure into CopyCat.
+type SnapshotProvider func() ([]byte, error)
+
+// SnapshotConsumers are used to transport a serialized representation
+// of a data structure out of CopyCat.
+type SnapshotConsumer func() ([]byte, error)
 
 // DataStructure - Every data structure that uses CopyCat needs to implement this interface.
 // It allows CopyCat to keep this data sturcture up-to-date with all committed changes.

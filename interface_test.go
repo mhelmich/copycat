@@ -40,16 +40,17 @@ func __TestCopyCatBasic(t *testing.T) {
 func loadTestCat(cc CopyCat) *testCat {
 	cat := &testCat{}
 	catId := uint64(99)
-	cat.proposeCh, cat.commitCh, cat.errorCh = cc.LoadDataStructure(catId, cat)
+	cat.proposeCh, cat.commitCh, cat.errorCh, cat.snapshotConsumer = cc.ConnectToDataStructure(catId, cat.providerSnapshot)
 	go cat.serveChannel()
 	return cat
 }
 
 type testCat struct {
-	data      map[string]string
-	proposeCh chan<- []byte
-	commitCh  <-chan []byte
-	errorCh   <-chan error
+	data             map[string]string
+	proposeCh        chan<- []byte
+	commitCh         <-chan []byte
+	errorCh          <-chan error
+	snapshotConsumer SnapshotConsumer
 }
 
 type kv struct {
@@ -63,6 +64,12 @@ func (c *testCat) serveChannel() {
 		case data, ok := <-c.commitCh:
 			if !ok {
 				return
+			}
+
+			if data == nil {
+				// TODO reload map from snapshot
+				bites, err := c.snapshotConsumer()
+				log.Infof("%d %s", len(bites), err)
 			}
 
 			newOp := &kv{}
@@ -104,14 +111,6 @@ func (c *testCat) put(key, value string) {
 	c.proposeCh <- bites
 }
 
-func (c *testCat) GetSnapshot() ([]byte, error) {
+func (c *testCat) providerSnapshot() ([]byte, error) {
 	return json.Marshal(c.data)
-}
-
-func (c *testCat) SetSnapshot(b []byte) error {
-	return json.Unmarshal(b, c.data)
-}
-
-func (c *testCat) ApplyChange(b []byte) error {
-	return nil
 }

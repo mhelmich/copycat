@@ -26,30 +26,23 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func newRaftBackendWithConfig(config *CopyCatConfig) (chan<- msgAndStream, error) {
-	proposeChan := make(chan []byte)
-	proposeConfChangeChan := make(chan raftpb.ConfChange)
-	commitChan := make(chan []byte)
-	errorChan := make(chan error)
-
-	rb := &raftBackend{
-		raftId:                randomRaftId(),
-		proposeChan:           proposeChan,
-		proposeConfChangeChan: proposeConfChangeChan,
-		commitChan:            commitChan,
-		errorChan:             errorChan,
-		stopChan:              make(chan struct{}),
-	}
-
-	go rb.startRaft()
-	return nil, nil
+func newRaftBackendWithConfig(config *CopyCatConfig) (*raftBackend, error) {
+	return newRaftBackendWithId(randomRaftId(), config)
 }
 
-func newRaftBackendWithId(newRaftId uint64) (*raftBackend, error) {
+func newRaftBackendWithId(newRaftId uint64, config *CopyCatConfig) (*raftBackend, error) {
 	proposeChan := make(chan []byte)
 	proposeConfChangeChan := make(chan raftpb.ConfChange)
 	commitChan := make(chan []byte)
 	errorChan := make(chan error)
+
+	storeDir := config.CopyCatDataDir + "raft-" + uint64ToString(newRaftId) + "/"
+	startFromExistingState := storageExists(storeDir)
+	bs, err := openBoltStorage(storeDir, config.logger)
+	if err != nil {
+		config.logger.Errorf("Can't open data store: %s", err.Error())
+		return nil, err
+	}
 
 	rb := &raftBackend{
 		raftId:                newRaftId,
@@ -57,7 +50,9 @@ func newRaftBackendWithId(newRaftId uint64) (*raftBackend, error) {
 		proposeConfChangeChan: proposeConfChangeChan,
 		commitChan:            commitChan,
 		errorChan:             errorChan,
-		stopChan:              make(chan struct{}),
+		store:                 bs,
+		startFromExistingState: startFromExistingState,
+		stopChan:               make(chan struct{}),
 	}
 
 	go rb.startRaft()
@@ -65,16 +60,29 @@ func newRaftBackendWithId(newRaftId uint64) (*raftBackend, error) {
 }
 
 type raftBackend struct {
-	raftId    uint64    // cluster-wide unique raft ID
-	peers     []pb.Peer // raft peer URLs
-	raftNode  raft.Node // the actual raft node
-	transport transport
-	store     store
+	raftId                 uint64    // cluster-wide unique raft ID
+	peers                  []pb.Peer // raft peer URLs
+	raftNode               raft.Node // the actual raft node
+	transport              transport // the transport used to send raft messages to other backends
+	store                  store     // the raft data store
+	startFromExistingState bool      // indicates whether this raft backend starts off with existing state or not
 
-	proposeChan           <-chan []byte            // proposed changes to the data of this raft group
-	proposeConfChangeChan <-chan raftpb.ConfChange // proposed changes to the raft group topology
-	commitChan            chan<- []byte            // changes committed to this raft group
-	errorChan             chan<- error             // errors while processing proposed changes
+	// proposed changes to the data of this raft group
+	// write-only for the consumer
+	// read-only for the raftBacken
+	proposeChan chan []byte
+	// proposed changes to the raft group topology
+	// write-only for the consumer
+	// read-only for the raftBacken
+	proposeConfChangeChan chan raftpb.ConfChange
+	// changes committed to this raft group
+	// write-only for the raftBackend
+	// read-only for the consumer
+	commitChan chan []byte
+	// errors while processing proposed changes
+	// write-only for the raftBackend
+	// read-only for the consumer
+	errorChan chan error
 
 	confState raftpb.ConfState
 	logger    *log.Entry    // the logger to use by this struct
@@ -92,14 +100,18 @@ func (rb *raftBackend) startRaft() {
 		Logger:          rb.logger,
 	}
 
-	rpeers := make([]raft.Peer, len(rb.peers))
-	for i := range rpeers {
-		rpeers[i] = raft.Peer{
-			ID:      rb.peers[i].Id,
-			Context: []byte(rb.peers[i].RaftAddress),
+	if rb.startFromExistingState {
+		rb.raftNode = raft.RestartNode(c)
+	} else {
+		rpeers := make([]raft.Peer, len(rb.peers))
+		for i := range rpeers {
+			rpeers[i] = raft.Peer{
+				ID:      rb.peers[i].Id,
+				Context: []byte(rb.peers[i].RaftAddress),
+			}
 		}
+		rb.raftNode = raft.StartNode(c, rpeers)
 	}
-	rb.raftNode = raft.StartNode(c, rpeers)
 
 	go rb.serveProposalChannels()
 	go rb.runRaftStateMachine()
@@ -164,7 +176,6 @@ func (rb *raftBackend) publishEntries(ents []raftpb.Entry) bool {
 }
 
 func (rb *raftBackend) stop() {
-	rb.transport.stop()
 	close(rb.commitChan)
 	close(rb.errorChan)
 	rb.raftNode.Stop()
