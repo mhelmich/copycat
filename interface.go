@@ -80,13 +80,6 @@ type SnapshotProvider func() ([]byte, error)
 // of a data structure out of CopyCat.
 type SnapshotConsumer func() ([]byte, error)
 
-// DataStructure - Every data structure that uses CopyCat needs to implement this interface.
-// It allows CopyCat to keep this data sturcture up-to-date with all committed changes.
-type DataStructure interface {
-	GetSnapshot() ([]byte, error)
-	SetSnapshot([]byte) error
-}
-
 // Internal interface.
 type transport interface {
 	addPeer(id uint64, addr string) error
