@@ -33,6 +33,7 @@ func newCopyCat(config *CopyCatConfig) (*copyCatImpl, error) {
 		return nil, err
 	}
 
+	config.raftTransport = t
 	return &copyCatImpl{
 		transport:  t,
 		membership: m,
@@ -45,7 +46,18 @@ type copyCatImpl struct {
 	logger     *log.Entry
 }
 
+// takes one operation, finds the leader remotely, and sends the operation to the leader
 func (c *copyCatImpl) ConnectToDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer) {
+	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
+}
+
+// takes a data strucutre id, has this node join the raft group, finds the leader of the raft group, and tries to transfer leadership to this node
+func (c *copyCatImpl) TakeOwnershipOfDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer) {
+	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
+}
+
+// takes a data structure id, joins the raft group as learner, assembles and exposes the raft log
+func (c *copyCatImpl) FollowDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer) {
 	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
 }
 

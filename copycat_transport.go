@@ -41,11 +41,12 @@ func newTransport(config *CopyCatConfig, membership *membership) (*copyCatTransp
 	}
 
 	transport := &copyCatTransport{
-		config:       config,
-		grpcServer:   grpc.NewServer(),
-		raftBackends: make(map[uint64]*raftBackend),
-		membership:   membership,
-		logger:       logger,
+		config:         config,
+		grpcServer:     grpc.NewServer(),
+		raftBackends:   make(map[uint64]transportRaftBackend),
+		membership:     membership,
+		newRaftBackend: transportNewRaftBackend,
+		logger:         logger,
 	}
 
 	pb.RegisterCopyCatServiceServer(transport.grpcServer, transport)
@@ -56,11 +57,17 @@ func newTransport(config *CopyCatConfig, membership *membership) (*copyCatTransp
 }
 
 type copyCatTransport struct {
-	config       *CopyCatConfig
-	grpcServer   *grpc.Server
-	raftBackends map[uint64]*raftBackend
-	membership   *membership
-	logger       *log.Entry
+	config         *CopyCatConfig
+	grpcServer     *grpc.Server
+	raftBackends   map[uint64]transportRaftBackend
+	membership     *membership
+	newRaftBackend func(uint64, *CopyCatConfig) (transportRaftBackend, error) // pulled out for testing
+	logger         *log.Entry
+}
+
+// Yet another level of indirection used for unit testing
+func transportNewRaftBackend(newRaftId uint64, config *CopyCatConfig) (transportRaftBackend, error) {
+	return newRaftBackendWithId(newRaftId, config)
 }
 
 func (t *copyCatTransport) StartRaft(ctx context.Context, in *pb.StartRaftRequest) (*pb.StartRaftResponse, error) {
@@ -68,7 +75,7 @@ func (t *copyCatTransport) StartRaft(ctx context.Context, in *pb.StartRaftReques
 	// A raft backend is started in join mode but without specifying other peers.
 	// It will just sit there and do nothing until a leader with higher term contacts it.
 	// After that the new backend will try to respond to the messages it has been receiving and join the cluster.
-	backend, err := newRaftBackendWithId(newRaftId, t.config)
+	backend, err := t.newRaftBackend(newRaftId, t.config)
 	if err != nil {
 		t.logger.Errorf("Can't create raft backend: %s", err.Error())
 		return nil, err
@@ -82,10 +89,10 @@ func (t *copyCatTransport) StartRaft(ctx context.Context, in *pb.StartRaftReques
 }
 
 func (t *copyCatTransport) StopRaft(ctx context.Context, in *pb.StopRaftRequest) (*pb.StopRaftResponse, error) {
-	ch, ok := t.raftBackends[in.RaftId]
+	rb, ok := t.raftBackends[in.RaftId]
 	if ok {
 		delete(t.raftBackends, in.RaftId)
-		defer ch.stop()
+		defer rb.stop()
 	}
 	return &pb.StopRaftResponse{}, nil
 }

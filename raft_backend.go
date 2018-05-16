@@ -31,6 +31,11 @@ func newRaftBackendWithConfig(config *CopyCatConfig) (*raftBackend, error) {
 }
 
 func newRaftBackendWithId(newRaftId uint64, config *CopyCatConfig) (*raftBackend, error) {
+	logger := config.logger.WithFields(log.Fields{
+		"component": "raftBackend",
+		"raftId":    uint64ToString(newRaftId),
+	})
+
 	proposeChan := make(chan []byte)
 	proposeConfChangeChan := make(chan raftpb.ConfChange)
 	commitChan := make(chan []byte)
@@ -53,6 +58,8 @@ func newRaftBackendWithId(newRaftId uint64, config *CopyCatConfig) (*raftBackend
 		store:                 bs,
 		startFromExistingState: startFromExistingState,
 		stopChan:               make(chan struct{}),
+		transport:              config.raftTransport,
+		logger:                 logger,
 	}
 
 	go rb.startRaft()
@@ -60,12 +67,12 @@ func newRaftBackendWithId(newRaftId uint64, config *CopyCatConfig) (*raftBackend
 }
 
 type raftBackend struct {
-	raftId                 uint64    // cluster-wide unique raft ID
-	peers                  []pb.Peer // raft peer URLs
-	raftNode               raft.Node // the actual raft node
-	transport              transport // the transport used to send raft messages to other backends
-	store                  store     // the raft data store
-	startFromExistingState bool      // indicates whether this raft backend starts off with existing state or not
+	raftId                 uint64       // cluster-wide unique raft ID
+	peers                  []pb.Peer    // raft peer URLs
+	raftNode               raft.Node    // the actual raft node
+	transport              raftTranport // the transport used to send raft messages to other backends
+	store                  store        // the raft data store
+	startFromExistingState bool         // indicates whether this raft backend starts off with existing state or not
 
 	// proposed changes to the data of this raft group
 	// write-only for the consumer
@@ -161,22 +168,24 @@ func (rb *raftBackend) runRaftStateMachine() {
 			rb.raftNode.Advance()
 
 		case <-rb.stopChan:
-			rb.stop()
 			return
 		}
 	}
 }
 
 func (rb *raftBackend) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry) {
+	nents = make([]raftpb.Entry, 0)
 	return
 }
 
 func (rb *raftBackend) publishEntries(ents []raftpb.Entry) bool {
-	return false
+	return true
 }
 
 func (rb *raftBackend) stop() {
+	rb.stopChan <- struct{}{}
+	close(rb.stopChan)
+	rb.raftNode.Stop()
 	close(rb.commitChan)
 	close(rb.errorChan)
-	rb.raftNode.Stop()
 }

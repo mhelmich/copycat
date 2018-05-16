@@ -17,6 +17,7 @@
 package copycat
 
 import (
+	"context"
 	"os"
 	"strconv"
 
@@ -56,9 +57,10 @@ type CopyCatConfig struct {
 	PeersToContact []string
 
 	// Popluated internally.
-	hostname   string
-	gossipPort int
-	logger     *log.Entry
+	raftTransport raftTranport
+	hostname      string
+	gossipPort    int
+	logger        *log.Entry
 }
 
 // NewCopyCat initiates and starts the copycat framework.
@@ -85,19 +87,23 @@ type SnapshotProvider func() ([]byte, error)
 type SnapshotConsumer func() ([]byte, error)
 
 // Internal interface.
-type transport interface {
-	addPeer(id uint64, addr string) error
-	removePeer(id uint64)
-	sendMessages(msgs []raftpb.Message)
-	errorChannel() chan error
-	stop()
-}
-
-// Internal interface.
 type store interface {
 	raft.Storage
 	saveConfigState(confState raftpb.ConfState) error
 	saveEntriesAndState(entries []raftpb.Entry, hardState raftpb.HardState) error
 	saveSnap(snap raftpb.Snapshot) error
 	close()
+}
+
+// Internal interface that is only used in CopyCat raft backend.
+// It was introduced for mocking purposes.
+type raftTranport interface {
+	sendMessages(msgs []raftpb.Message)
+}
+
+// Internal interface that is only used in CopyCat transport.
+// It was introduced for mocking purposes.
+type transportRaftBackend interface {
+	step(ctx context.Context, msg raftpb.Message) error
+	stop()
 }
