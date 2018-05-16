@@ -57,7 +57,7 @@ func (c *copyCatImpl) TakeOwnershipOfDataStructure(id uint64, provider SnapshotP
 }
 
 // takes a data structure id, joins the raft group as learner, assembles and exposes the raft log
-func (c *copyCatImpl) FollowDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer) {
+func (c *copyCatImpl) SubscribeToDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer) {
 	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
 }
 
