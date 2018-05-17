@@ -20,6 +20,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/serf/serf"
@@ -30,7 +31,7 @@ import (
 
 func TestMembershipBasic(t *testing.T) {
 	config := DefaultConfig()
-	config.CopyCatDataDir = "./test-" + uint64ToString(randomRaftId())
+	config.CopyCatDataDir = "./test-TestMembershipBasic-" + uint64ToString(randomRaftId())
 	err := os.MkdirAll(config.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	m, err := newMembership(config)
@@ -47,14 +48,14 @@ func TestMembershipBasic(t *testing.T) {
 
 func TestMembershipBasicTwoNodes(t *testing.T) {
 	config1 := DefaultConfig()
-	config1.CopyCatDataDir = "./test-" + uint64ToString(randomRaftId())
+	config1.CopyCatDataDir = "./test-TestMembershipBasicTwoNodes-" + uint64ToString(randomRaftId())
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	m1, err := newMembership(config1)
 	assert.Nil(t, err)
 
 	config2 := DefaultConfig()
-	config2.CopyCatDataDir = "./test-" + uint64ToString(randomRaftId())
+	config2.CopyCatDataDir = "./test-TestMembershipBasicTwoNodes-" + uint64ToString(randomRaftId())
 	config2.gossipPort = config2.gossipPort + 10000
 	config2.PeersToContact = make([]string, 1)
 	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.gossipPort)
@@ -132,7 +133,7 @@ func TestMembershipNodeJoin(t *testing.T) {
 
 func TestMembershipHandleQuery(t *testing.T) {
 	config := DefaultConfig()
-	config.CopyCatDataDir = "./test-" + uint64ToString(randomRaftId())
+	config.CopyCatDataDir = "./test-TestMembershipHandleQuery-" + uint64ToString(randomRaftId())
 	err := os.MkdirAll(config.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	m, err := newMembership(config)
@@ -155,6 +156,51 @@ func TestMembershipHandleQuery(t *testing.T) {
 	err = m.stop()
 	assert.Nil(t, err)
 	err = os.RemoveAll(config.CopyCatDataDir)
+	assert.Nil(t, err)
+}
+
+// TODO: doesn't work because the two serf clusters can't establish a UDP connection
+func ___TestMembershipDataStructureQuery(t *testing.T) {
+	config1 := DefaultConfig()
+	config1.hostname = "localhost"
+	config1.CopyCatDataDir = "./test-TestMembershipDataStructureQuery-" + uint64ToString(randomRaftId())
+	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
+	assert.Nil(t, err)
+	m1, err := newMembership(config1)
+	assert.Nil(t, err)
+
+	config2 := DefaultConfig()
+	config2.hostname = "localhost"
+	config2.CopyCatDataDir = "./test-TestMembershipDataStructureQuery-" + uint64ToString(randomRaftId())
+	config2.gossipPort = config1.gossipPort + 10000
+	config2.PeersToContact = make([]string, 1)
+	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.gossipPort)
+	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
+	assert.Nil(t, err)
+	m2, err := newMembership(config2)
+	assert.Nil(t, err)
+
+	theAddressImLookingFor := "555_Fake_Street"
+	randomDSId := randomRaftId()
+	raftId1 := randomRaftId()
+	m2.dataStructureIdToRaftIds[randomDSId] = make(map[uint64]bool)
+	m2.dataStructureIdToRaftIds[randomDSId][raftId1] = false
+	m2.raftIdToAddress[raftId1] = theAddressImLookingFor
+
+	time.Sleep(16 * time.Second)
+
+	log.Infof("Querying for DS with id [%d]", randomDSId)
+	address, err := m1.findDataStructureWithId(randomDSId)
+	assert.Nil(t, err)
+	assert.Equal(t, theAddressImLookingFor, address)
+
+	err = m1.stop()
+	assert.Nil(t, err)
+	err = os.RemoveAll(config1.CopyCatDataDir)
+	assert.Nil(t, err)
+	err = m2.stop()
+	assert.Nil(t, err)
+	err = os.RemoveAll(config2.CopyCatDataDir)
 	assert.Nil(t, err)
 }
 

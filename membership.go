@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/serf/serf"
@@ -33,7 +34,8 @@ const (
 	serfMDKeySerfPort    = "serf_port"
 	serfMDKeyCopyCatPort = "cat_port"
 	serfMDKeyHost        = "host"
-	serfMDKeyHostedItems = "ds_to_raft"
+	serfMDKeyHostedItems = "items"
+	serfMDKeyLocation    = "loc"
 )
 
 // Membership uses serf under the covers to gossip metadata about the cluster.
@@ -54,8 +56,9 @@ type membership struct {
 func newMembership(config *CopyCatConfig) (*membership, error) {
 	serfNodeId := uint64ToString(randomRaftId())
 	logger := config.logger.WithFields(log.Fields{
-		"component": "serf",
-		"serf_node": serfNodeId,
+		"component":   "serf",
+		"serf_node":   serfNodeId,
+		"gossip_port": strconv.Itoa(config.gossipPort),
 	})
 
 	serfConfig := serf.DefaultConfig()
@@ -68,7 +71,7 @@ func newMembership(config *CopyCatConfig) (*membership, error) {
 	serfConfig.EnableNameConflictResolution = true
 	serfConfig.MemberlistConfig.BindAddr = config.hostname
 	serfConfig.MemberlistConfig.BindPort = config.gossipPort
-	serfConfig.LogOutput = logger.Writer()
+	serfConfig.LogOutput = logger.WriterLevel(log.DebugLevel)
 	if strings.HasSuffix(config.CopyCatDataDir, "/") {
 		serfConfig.SnapshotPath = config.CopyCatDataDir + dbName
 	} else {
@@ -79,6 +82,7 @@ func newMembership(config *CopyCatConfig) (*membership, error) {
 	serfConfig.Tags[serfMDKeyHost] = config.hostname
 	serfConfig.Tags[serfMDKeySerfPort] = strconv.Itoa(config.gossipPort)
 	serfConfig.Tags[serfMDKeyCopyCatPort] = strconv.Itoa(config.CopyCatPort)
+	serfConfig.Tags[serfMDKeyLocation] = config.Location
 	serfConfig.Tags[serfMDKeyHostedItems] = proto.MarshalTextString(&pb.HostedItems{
 		DataStructureToRaftMapping: make(map[uint64]uint64),
 	})
@@ -118,6 +122,9 @@ func (m *membership) handleSerfEvents(serfEventChannel <-chan serf.Event) {
 			if !ok {
 				return
 			}
+
+			m.logger.Infof("RECEIVING SERF EVENT: %s", serfEvent.String())
+
 			//
 			// Obviously we receive these events multiple times per actual event.
 			// That means we need to do some sort of deduping.
@@ -169,7 +176,7 @@ func (m *membership) handleMemberUpdatedEvent(me serf.MemberEvent) {
 
 func (m *membership) handleMemberLeaveEvent(me serf.MemberEvent) {
 	for _, mem := range me.Members {
-		m.logger.Debugf("Removing member: %s", mem.Name)
+		m.logger.Infof("Removing member: %s", mem.Name)
 		// err :=proto.MarshalTextString(pb)
 		// idStr := mem.Tags[serfMDKeyMemberId]
 		// id := stringToUint64(idStr)
@@ -184,12 +191,16 @@ func (m *membership) handleQuery(query *serf.Query) {
 		m.logger.Errorf("Can't deserialize query type [%s]: %s", query.Name, err.Error())
 	}
 
+	m.logger.Infof("HANDLING QUERY: %s", query.String())
+
 	var bites []byte
 	switch pb.GossipQueryNames(i) {
 	case pb.RaftIdQuery:
 		bites, err = m.handleRaftIdQuery(query)
 	case pb.DataStructureIdQuery:
 		bites, err = m.handleDataStructureIdQuery(query)
+	default:
+		err = fmt.Errorf("I don't know query: %s", pb.GossipQueryNames(i).String())
 	}
 
 	if err != nil {
@@ -224,7 +235,24 @@ func (m *membership) handleRaftIdQuery(query *serf.Query) ([]byte, error) {
 }
 
 func (m *membership) handleDataStructureIdQuery(query *serf.Query) ([]byte, error) {
-	return nil, nil
+	m.logger.Infof("Handling data structure id query...")
+	req := &pb.DataStructureIdRequest{}
+	err := req.Unmarshal(query.Payload)
+	if err != nil {
+		return nil, err
+	}
+
+	addresses := m.getAddressesForDataStructureId(req.DataStructureId)
+	if addresses == nil || len(addresses) == 0 {
+		return nil, fmt.Errorf("I don't know about data structure id [%d] myself", req.DataStructureId)
+	}
+
+	resp := &pb.DataStructureIdResponse{
+		Address: addresses[0],
+	}
+
+	m.logger.Infof("Sending response: %s", resp.String())
+	return resp.Marshal()
 }
 
 func (m *membership) addDsToRaftIdMapping(dsId uint64, raftId uint64) error {
@@ -252,10 +280,63 @@ func (m *membership) addDsToRaftIdMapping(dsId uint64, raftId uint64) error {
 	return m.serf.SetTags(setMe)
 }
 
-func (m *membership) findDataStructureWithId(id uint64) {
+func (m *membership) findDataStructureWithId(id uint64) (string, error) {
+	req := &pb.DataStructureIdRequest{DataStructureId: id}
+	data, err := req.Marshal()
+	if err != nil {
+		return "", err
+	}
+
+	serfQueryResp, err := m.serf.Query(strconv.Itoa(int(pb.DataStructureIdQuery)), data, &serf.QueryParam{})
+	if err != nil {
+		return "", err
+	}
+
+	defer serfQueryResp.Close()
+	serfRespCh := serfQueryResp.ResponseCh()
+	m.logger.Infof("Sent serf query: %s", req.String())
+
+	for {
+		select {
+		case serfResp, ok := <-serfRespCh:
+			if !ok {
+				return "", fmt.Errorf("Serf response channel was closed")
+			}
+
+			m.logger.Infof("Got response %v", serfResp)
+			if serfResp.Payload != nil {
+				resp := &pb.DataStructureIdResponse{}
+				err = resp.Unmarshal(serfResp.Payload)
+				if err == nil {
+					return resp.Address, nil
+				}
+			}
+		case <-time.After(time.Until(serfQueryResp.Deadline())):
+			return "", fmt.Errorf("Serf query timed out: %s", req.String())
+		}
+	}
 }
 
 func (m *membership) findPeersForNewDataStructure() {
+}
+
+func (m *membership) getAddressesForDataStructureId(dsId uint64) []string {
+	raftIdsMap, ok := m.dataStructureIdToRaftIds[dsId]
+	if !ok {
+		m.logger.Infof("I don't know data structure with id [%d]", dsId)
+		return make([]string, 0)
+	}
+
+	addrs := make([]string, len(raftIdsMap))
+	i := 0
+	for raftId := range raftIdsMap {
+		addr, ok := m.raftIdToAddress[raftId]
+		if ok {
+			addrs[i] = addr
+			i++
+		}
+	}
+	return addrs[:i]
 }
 
 func (m *membership) getAddressForRaftId(raftId uint64) string {
