@@ -38,6 +38,7 @@ func DefaultConfig() *CopyCatConfig {
 		CopyCatPort:    defaultCopyCatPort,
 		gossipPort:     defaultCopyCatPort + 1000,
 		CopyCatDataDir: defaultCopyCatDataDir,
+		Location:       "",
 		logger: log.WithFields(log.Fields{
 			"component": "copycat",
 			"host":      host,
@@ -55,6 +56,10 @@ type CopyCatConfig struct {
 	// Simple address of at least one CopyCat peer to contact. The format is "<machine>:<copycat_port>".
 	// If you leave this empty or nil, this node will start a brandnew cluster.
 	PeersToContact []string
+	// Arbitrary string identifying a geo location. CopyCat will try to distribute data across multiple
+	// geo locations to protect data against dependent failures such as power outages, etc.
+	// Even though the API doesn't prescribe a string size, shorter is better.
+	Location string
 
 	// Popluated internally.
 	raftTransport raftTranport
