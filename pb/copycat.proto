@@ -108,6 +108,7 @@ message ProposeReq {
 }
 
 message ProposeResp {
+  string ForwardAddress = 1;
 }
 
 message CommitReq {
@@ -167,11 +168,20 @@ message SendResp {
 // SECTION FOR THE COPYCAT SERVICE
 
 service CopyCatService {
+  rpc NewDataStructure(NewDataStructureRequest) returns (NewDataStructureResponse) {}
   rpc StartRaft(StartRaftRequest) returns (StartRaftResponse) {}
   rpc StopRaft(StopRaftRequest) returns (StopRaftResponse) {}
 }
 
-message StartRaftRequest {}
+message NewDataStructureRequest {
+}
+
+message NewDataStructureResponse {
+  uint64 DataStructureId = 1;
+}
+
+message StartRaftRequest {
+}
 
 message StartRaftResponse {
   uint64 RaftId = 1;
@@ -182,4 +192,5 @@ message StopRaftRequest {
   uint64 RaftId = 1;
 }
 
-message StopRaftResponse {}
+message StopRaftResponse {
+}
