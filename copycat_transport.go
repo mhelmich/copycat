@@ -34,19 +34,21 @@ func newTransport(config *CopyCatConfig, membership *membership) (*copyCatTransp
 		"component": "copycat_transport",
 	})
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.CopyCatPort))
+	myAddress := fmt.Sprintf("%s:%d", config.hostname, config.CopyCatPort)
+	lis, err := net.Listen("tcp", myAddress)
 	if err != nil {
 		logger.Fatalf("failed to listen: %v", err)
 		return nil, err
 	}
 
 	transport := &copyCatTransport{
-		config:         config,
-		grpcServer:     grpc.NewServer(),
-		raftBackends:   make(map[uint64]transportRaftBackend),
-		membership:     membership,
-		newRaftBackend: _transportNewRaftBackend,
-		logger:         logger,
+		config:             config,
+		grpcServer:         grpc.NewServer(),
+		myAddress:          myAddress,
+		raftBackends:       make(map[uint64]transportRaftBackend),
+		membership:         membership,
+		newRaftBackendFunc: _transportNewRaftBackend,
+		logger:             logger,
 	}
 
 	pb.RegisterCopyCatServiceServer(transport.grpcServer, transport)
@@ -58,15 +60,17 @@ func newTransport(config *CopyCatConfig, membership *membership) (*copyCatTransp
 }
 
 type copyCatTransport struct {
-	config         *CopyCatConfig
-	grpcServer     *grpc.Server
-	raftBackends   map[uint64]transportRaftBackend
-	membership     *membership
-	newRaftBackend func(uint64, *CopyCatConfig) (transportRaftBackend, error) // pulled out for testing
-	logger         *log.Entry
+	config             *CopyCatConfig
+	grpcServer         *grpc.Server
+	myAddress          string
+	raftBackends       map[uint64]transportRaftBackend
+	membership         *membership
+	newRaftBackendFunc func(uint64, *CopyCatConfig) (transportRaftBackend, error) // pulled out for testing
+	logger             *log.Entry
 }
 
-// Yet another level of indirection used for unit testing
+// Yet another level of indirection so that this method can return an interface
+// used for unit testing
 func _transportNewRaftBackend(newRaftId uint64, config *CopyCatConfig) (transportRaftBackend, error) {
 	return newRaftBackendWithId(newRaftId, config)
 }
@@ -75,12 +79,16 @@ func _transportNewRaftBackend(newRaftId uint64, config *CopyCatConfig) (transpor
 ////////////////////////////////
 // SECTION FOR THE COPYCAT SERVICE
 
+func (t *copyCatTransport) NewDataStructure(ctx context.Context, in *pb.NewDataStructureRequest) (*pb.NewDataStructureResponse, error) {
+	return nil, nil
+}
+
 func (t *copyCatTransport) StartRaft(ctx context.Context, in *pb.StartRaftRequest) (*pb.StartRaftResponse, error) {
 	newRaftId := randomRaftId()
 	// A raft backend is started in join mode but without specifying other peers.
 	// It will just sit there and do nothing until a leader with higher term contacts it.
 	// After that the new backend will try to respond to the messages it has been receiving and join the cluster.
-	backend, err := t.newRaftBackend(newRaftId, t.config)
+	backend, err := t.newRaftBackendFunc(newRaftId, t.config)
 	if err != nil {
 		t.logger.Errorf("Can't create raft backend: %s", err.Error())
 		return nil, err
@@ -167,7 +175,31 @@ func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) {
 // SECTION FOR THE DATA STRUCTURE SERVICE
 
 func (t *copyCatTransport) Propose(stream pb.DataStructureService_ProposeServer) error {
-	return nil
+	for { //ever...
+		proposeReq, err := stream.Recv()
+		if err == io.EOF {
+			return stream.SendAndClose(&pb.ProposeResp{})
+		} else if err != nil {
+			return err
+		}
+
+		IDo, actualHost := t.doIHostDataStructure(proposeReq.DataStructureId)
+		if IDo {
+			// do the actual work of taking the byte array and send it to the raft proposal channel
+		} else {
+			// send forward message back and be done
+			// the address string however might be empty indicating that we don't know about
+			// this particular data structure at all
+			// in this case it's best to query the cluster and ask my peers
+			if actualHost == "" {
+				actualHost, _ = t.membership.findDataStructureWithId(proposeReq.DataStructureId)
+			}
+
+			return stream.SendAndClose(&pb.ProposeResp{
+				ForwardAddress: actualHost,
+			})
+		}
+	}
 }
 
 func (t *copyCatTransport) Commit(in *pb.CommitReq, stream pb.DataStructureService_CommitServer) error {
@@ -184,6 +216,27 @@ func (t *copyCatTransport) ConsumeSnapshot(ctx context.Context, in *pb.ConsumeSn
 
 func (t *copyCatTransport) ProvideSnapshot(stream pb.DataStructureService_ProvideSnapshotServer) error {
 	return nil
+}
+
+//////////////////////////////////////////
+////////////////////////////////
+// SECTION FOR UTILS
+
+func (t *copyCatTransport) doIHostDataStructure(dsId uint64) (bool, string) {
+	addresses := t.membership.getAddressesForDataStructureId(dsId)
+	if len(addresses) == 0 {
+		return false, ""
+	}
+
+	for _, addr := range addresses {
+		if addr == t.myAddress {
+			return true, ""
+		}
+	}
+
+	// yeah, I'm not hosting that
+	// just return a random one for now
+	return false, addresses[0]
 }
 
 func (t *copyCatTransport) stop() {

@@ -287,7 +287,7 @@ func (m *membership) findDataStructureWithId(id uint64) (string, error) {
 		return "", err
 	}
 
-	serfQueryResp, err := m.serf.Query(strconv.Itoa(int(pb.DataStructureIdQuery)), data, &serf.QueryParam{})
+	serfQueryResp, err := m.serf.Query(strconv.Itoa(int(pb.DataStructureIdQuery)), data, m.serf.DefaultQueryParams())
 	if err != nil {
 		return "", err
 	}
