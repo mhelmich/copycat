@@ -70,12 +70,76 @@ message DataStructureIdResponse {
 // SECTION FOR CLUSTER METADATA
 
 message Peer {
-  uint64 id = 1;
-  string raftAddress = 2;
+  uint64 Id = 1;
+  string RaftAddress = 2;
 }
 
 message HostedItems {
   map<uint64,uint64> DataStructureToRaftMapping = 1;
+}
+
+//////////////////////////////////////////
+////////////////////////////////
+// SECTION FOR THE DATA STRUCTURE SERVICE
+
+service DataStructureService {
+  // A client keeps sending operations into this stream.
+  // CopyCat will consume this stream and try to achieve consensus.
+  rpc Propose(stream ProposeReq) returns (ProposeResp) {}
+  // All changes that CopyCat accepted and committed will be replayed via this stream.
+  // This stream will contain all committed operations that have been sent to the propose stream.
+  rpc Commit(CommitReq) returns (stream CommitResp) {}
+  // If CopyCay runs into an error when trying to commit a change, this stream will contain an error.
+  rpc Error(ErrorReq) returns (stream ErrorResp) {}
+  // Then the commit stream hints that a new snapshot is available, this endpoint will provide it to you.
+  rpc ConsumeSnapshot(ConsumeSnapshotReq) returns (ConsumeSnapshotResp) {}
+  // This endpoint will be used to provide a consistent snapshot of data to CopyCat.
+  // In regular intervals CopyCat will ask for a consistent snapshot of your data structure.
+  // Clients are required to send a request to this endpoint as soon as they start interacting
+  // with a data sturcture. After they get a response from this endpoint, they need to reply
+  // to the response with another message containing a snapshot of the data structure.
+  // CopyCat will block until it has received the snapshot.
+  rpc ProvideSnapshot(stream ProvideSnapshotReq) returns (stream ProvideSnapshotResp) {}
+}
+
+message ProposeReq {
+  uint64 DataStructureId = 1;
+  bytes Data = 2;
+}
+
+message ProposeResp {
+}
+
+message CommitReq {
+  uint64 DataStructureId = 1;
+}
+
+message CommitResp {
+  bytes Data = 1;
+}
+
+message ErrorReq {
+  uint64 DataStructureId = 1;
+}
+
+message ErrorResp {
+  string Error = 1;
+}
+
+message ConsumeSnapshotReq {
+  uint64 DataStructureId = 1;
+}
+
+message ConsumeSnapshotResp {
+  bytes Data = 1;
+}
+
+message ProvideSnapshotReq {
+  uint64 DataStructureId = 1;
+  bytes Data = 2;
+}
+
+message ProvideSnapshotResp {
 }
 
 //////////////////////////////////////////
@@ -91,11 +155,11 @@ service RaftTransportService {
 }
 
 message SendReq {
-  raftpb.Message message = 1;
+  raftpb.Message Message = 1;
 }
 
 message SendResp {
-  TransportError error = 1;
+  TransportError Error = 1;
 }
 
 //////////////////////////////////////////
@@ -110,12 +174,12 @@ service CopyCatService {
 message StartRaftRequest {}
 
 message StartRaftResponse {
-  uint64 raftId = 1;
-  string raftAddress = 2;
+  uint64 RaftId = 1;
+  string RaftAddress = 2;
 }
 
 message StopRaftRequest {
-  uint64 raftId = 1;
+  uint64 RaftId = 1;
 }
 
 message StopRaftResponse {}

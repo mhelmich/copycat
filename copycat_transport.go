@@ -45,11 +45,12 @@ func newTransport(config *CopyCatConfig, membership *membership) (*copyCatTransp
 		grpcServer:     grpc.NewServer(),
 		raftBackends:   make(map[uint64]transportRaftBackend),
 		membership:     membership,
-		newRaftBackend: transportNewRaftBackend,
+		newRaftBackend: _transportNewRaftBackend,
 		logger:         logger,
 	}
 
 	pb.RegisterCopyCatServiceServer(transport.grpcServer, transport)
+	pb.RegisterDataStructureServiceServer(transport.grpcServer, transport)
 	pb.RegisterRaftTransportServiceServer(transport.grpcServer, transport)
 	go transport.grpcServer.Serve(lis)
 
@@ -66,9 +67,13 @@ type copyCatTransport struct {
 }
 
 // Yet another level of indirection used for unit testing
-func transportNewRaftBackend(newRaftId uint64, config *CopyCatConfig) (transportRaftBackend, error) {
+func _transportNewRaftBackend(newRaftId uint64, config *CopyCatConfig) (transportRaftBackend, error) {
 	return newRaftBackendWithId(newRaftId, config)
 }
+
+//////////////////////////////////////////
+////////////////////////////////
+// SECTION FOR THE COPYCAT SERVICE
 
 func (t *copyCatTransport) StartRaft(ctx context.Context, in *pb.StartRaftRequest) (*pb.StartRaftResponse, error) {
 	newRaftId := randomRaftId()
@@ -96,6 +101,10 @@ func (t *copyCatTransport) StopRaft(ctx context.Context, in *pb.StopRaftRequest)
 	}
 	return &pb.StopRaftResponse{}, nil
 }
+
+//////////////////////////////////////////
+////////////////////////////////
+// SECTION FOR THE RAFT TRANSPORT
 
 func (t *copyCatTransport) Send(stream pb.RaftTransportService_SendServer) error {
 	for { //ever...
@@ -153,15 +162,28 @@ func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) {
 	}
 }
 
-func (t *copyCatTransport) consumeChannels(rb *raftBackend) {
-	go func() {
-		for {
-			select {
-			case <-rb.commitChan:
-			case <-rb.errorChan:
-			}
-		}
-	}()
+//////////////////////////////////////////
+////////////////////////////////
+// SECTION FOR THE DATA STRUCTURE SERVICE
+
+func (t *copyCatTransport) Propose(stream pb.DataStructureService_ProposeServer) error {
+	return nil
+}
+
+func (t *copyCatTransport) Commit(in *pb.CommitReq, stream pb.DataStructureService_CommitServer) error {
+	return nil
+}
+
+func (t *copyCatTransport) Error(in *pb.ErrorReq, stream pb.DataStructureService_ErrorServer) error {
+	return nil
+}
+
+func (t *copyCatTransport) ConsumeSnapshot(ctx context.Context, in *pb.ConsumeSnapshotReq) (*pb.ConsumeSnapshotResp, error) {
+	return nil, nil
+}
+
+func (t *copyCatTransport) ProvideSnapshot(stream pb.DataStructureService_ProvideSnapshotServer) error {
+	return nil
 }
 
 func (t *copyCatTransport) stop() {

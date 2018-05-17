@@ -15,6 +15,16 @@
 		DataStructureIdResponse
 		Peer
 		HostedItems
+		ProposeReq
+		ProposeResp
+		CommitReq
+		CommitResp
+		ErrorReq
+		ErrorResp
+		ConsumeSnapshotReq
+		ConsumeSnapshotResp
+		ProvideSnapshotReq
+		ProvideSnapshotResp
 		SendReq
 		SendResp
 		StartRaftRequest
@@ -134,8 +144,8 @@ func (*DataStructureIdResponse) ProtoMessage()               {}
 func (*DataStructureIdResponse) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{4} }
 
 type Peer struct {
-	Id          uint64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	RaftAddress string `protobuf:"bytes,2,opt,name=raftAddress,proto3" json:"raftAddress,omitempty"`
+	Id          uint64 `protobuf:"varint,1,opt,name=Id,proto3" json:"Id,omitempty"`
+	RaftAddress string `protobuf:"bytes,2,opt,name=RaftAddress,proto3" json:"RaftAddress,omitempty"`
 }
 
 func (m *Peer) Reset()                    { *m = Peer{} }
@@ -152,23 +162,113 @@ func (m *HostedItems) String() string            { return proto.CompactTextStrin
 func (*HostedItems) ProtoMessage()               {}
 func (*HostedItems) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{6} }
 
+type ProposeReq struct {
+	DataStructureId uint64 `protobuf:"varint,1,opt,name=DataStructureId,proto3" json:"DataStructureId,omitempty"`
+	Data            []byte `protobuf:"bytes,2,opt,name=Data,proto3" json:"Data,omitempty"`
+}
+
+func (m *ProposeReq) Reset()                    { *m = ProposeReq{} }
+func (m *ProposeReq) String() string            { return proto.CompactTextString(m) }
+func (*ProposeReq) ProtoMessage()               {}
+func (*ProposeReq) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{7} }
+
+type ProposeResp struct {
+}
+
+func (m *ProposeResp) Reset()                    { *m = ProposeResp{} }
+func (m *ProposeResp) String() string            { return proto.CompactTextString(m) }
+func (*ProposeResp) ProtoMessage()               {}
+func (*ProposeResp) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{8} }
+
+type CommitReq struct {
+	DataStructureId uint64 `protobuf:"varint,1,opt,name=DataStructureId,proto3" json:"DataStructureId,omitempty"`
+}
+
+func (m *CommitReq) Reset()                    { *m = CommitReq{} }
+func (m *CommitReq) String() string            { return proto.CompactTextString(m) }
+func (*CommitReq) ProtoMessage()               {}
+func (*CommitReq) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{9} }
+
+type CommitResp struct {
+	Data []byte `protobuf:"bytes,1,opt,name=Data,proto3" json:"Data,omitempty"`
+}
+
+func (m *CommitResp) Reset()                    { *m = CommitResp{} }
+func (m *CommitResp) String() string            { return proto.CompactTextString(m) }
+func (*CommitResp) ProtoMessage()               {}
+func (*CommitResp) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{10} }
+
+type ErrorReq struct {
+	DataStructureId uint64 `protobuf:"varint,1,opt,name=DataStructureId,proto3" json:"DataStructureId,omitempty"`
+}
+
+func (m *ErrorReq) Reset()                    { *m = ErrorReq{} }
+func (m *ErrorReq) String() string            { return proto.CompactTextString(m) }
+func (*ErrorReq) ProtoMessage()               {}
+func (*ErrorReq) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{11} }
+
+type ErrorResp struct {
+	Error string `protobuf:"bytes,1,opt,name=Error,proto3" json:"Error,omitempty"`
+}
+
+func (m *ErrorResp) Reset()                    { *m = ErrorResp{} }
+func (m *ErrorResp) String() string            { return proto.CompactTextString(m) }
+func (*ErrorResp) ProtoMessage()               {}
+func (*ErrorResp) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{12} }
+
+type ConsumeSnapshotReq struct {
+	DataStructureId uint64 `protobuf:"varint,1,opt,name=DataStructureId,proto3" json:"DataStructureId,omitempty"`
+}
+
+func (m *ConsumeSnapshotReq) Reset()                    { *m = ConsumeSnapshotReq{} }
+func (m *ConsumeSnapshotReq) String() string            { return proto.CompactTextString(m) }
+func (*ConsumeSnapshotReq) ProtoMessage()               {}
+func (*ConsumeSnapshotReq) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{13} }
+
+type ConsumeSnapshotResp struct {
+	Data []byte `protobuf:"bytes,1,opt,name=Data,proto3" json:"Data,omitempty"`
+}
+
+func (m *ConsumeSnapshotResp) Reset()                    { *m = ConsumeSnapshotResp{} }
+func (m *ConsumeSnapshotResp) String() string            { return proto.CompactTextString(m) }
+func (*ConsumeSnapshotResp) ProtoMessage()               {}
+func (*ConsumeSnapshotResp) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{14} }
+
+type ProvideSnapshotReq struct {
+	DataStructureId uint64 `protobuf:"varint,1,opt,name=DataStructureId,proto3" json:"DataStructureId,omitempty"`
+	Data            []byte `protobuf:"bytes,2,opt,name=Data,proto3" json:"Data,omitempty"`
+}
+
+func (m *ProvideSnapshotReq) Reset()                    { *m = ProvideSnapshotReq{} }
+func (m *ProvideSnapshotReq) String() string            { return proto.CompactTextString(m) }
+func (*ProvideSnapshotReq) ProtoMessage()               {}
+func (*ProvideSnapshotReq) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{15} }
+
+type ProvideSnapshotResp struct {
+}
+
+func (m *ProvideSnapshotResp) Reset()                    { *m = ProvideSnapshotResp{} }
+func (m *ProvideSnapshotResp) String() string            { return proto.CompactTextString(m) }
+func (*ProvideSnapshotResp) ProtoMessage()               {}
+func (*ProvideSnapshotResp) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{16} }
+
 type SendReq struct {
-	Message *raftpb.Message `protobuf:"bytes,1,opt,name=message" json:"message,omitempty"`
+	Message *raftpb.Message `protobuf:"bytes,1,opt,name=Message" json:"Message,omitempty"`
 }
 
 func (m *SendReq) Reset()                    { *m = SendReq{} }
 func (m *SendReq) String() string            { return proto.CompactTextString(m) }
 func (*SendReq) ProtoMessage()               {}
-func (*SendReq) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{7} }
+func (*SendReq) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{17} }
 
 type SendResp struct {
-	Error TransportError `protobuf:"varint,1,opt,name=error,proto3,enum=pb.TransportError" json:"error,omitempty"`
+	Error TransportError `protobuf:"varint,1,opt,name=Error,proto3,enum=pb.TransportError" json:"Error,omitempty"`
 }
 
 func (m *SendResp) Reset()                    { *m = SendResp{} }
 func (m *SendResp) String() string            { return proto.CompactTextString(m) }
 func (*SendResp) ProtoMessage()               {}
-func (*SendResp) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{8} }
+func (*SendResp) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{18} }
 
 type StartRaftRequest struct {
 }
@@ -176,26 +276,26 @@ type StartRaftRequest struct {
 func (m *StartRaftRequest) Reset()                    { *m = StartRaftRequest{} }
 func (m *StartRaftRequest) String() string            { return proto.CompactTextString(m) }
 func (*StartRaftRequest) ProtoMessage()               {}
-func (*StartRaftRequest) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{9} }
+func (*StartRaftRequest) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{19} }
 
 type StartRaftResponse struct {
-	RaftId      uint64 `protobuf:"varint,1,opt,name=raftId,proto3" json:"raftId,omitempty"`
-	RaftAddress string `protobuf:"bytes,2,opt,name=raftAddress,proto3" json:"raftAddress,omitempty"`
+	RaftId      uint64 `protobuf:"varint,1,opt,name=RaftId,proto3" json:"RaftId,omitempty"`
+	RaftAddress string `protobuf:"bytes,2,opt,name=RaftAddress,proto3" json:"RaftAddress,omitempty"`
 }
 
 func (m *StartRaftResponse) Reset()                    { *m = StartRaftResponse{} }
 func (m *StartRaftResponse) String() string            { return proto.CompactTextString(m) }
 func (*StartRaftResponse) ProtoMessage()               {}
-func (*StartRaftResponse) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{10} }
+func (*StartRaftResponse) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{20} }
 
 type StopRaftRequest struct {
-	RaftId uint64 `protobuf:"varint,1,opt,name=raftId,proto3" json:"raftId,omitempty"`
+	RaftId uint64 `protobuf:"varint,1,opt,name=RaftId,proto3" json:"RaftId,omitempty"`
 }
 
 func (m *StopRaftRequest) Reset()                    { *m = StopRaftRequest{} }
 func (m *StopRaftRequest) String() string            { return proto.CompactTextString(m) }
 func (*StopRaftRequest) ProtoMessage()               {}
-func (*StopRaftRequest) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{11} }
+func (*StopRaftRequest) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{21} }
 
 type StopRaftResponse struct {
 }
@@ -203,7 +303,7 @@ type StopRaftResponse struct {
 func (m *StopRaftResponse) Reset()                    { *m = StopRaftResponse{} }
 func (m *StopRaftResponse) String() string            { return proto.CompactTextString(m) }
 func (*StopRaftResponse) ProtoMessage()               {}
-func (*StopRaftResponse) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{12} }
+func (*StopRaftResponse) Descriptor() ([]byte, []int) { return fileDescriptorCopycat, []int{22} }
 
 func init() {
 	proto.RegisterType((*TestCat)(nil), "pb.TestCat")
@@ -213,6 +313,16 @@ func init() {
 	proto.RegisterType((*DataStructureIdResponse)(nil), "pb.DataStructureIdResponse")
 	proto.RegisterType((*Peer)(nil), "pb.Peer")
 	proto.RegisterType((*HostedItems)(nil), "pb.HostedItems")
+	proto.RegisterType((*ProposeReq)(nil), "pb.ProposeReq")
+	proto.RegisterType((*ProposeResp)(nil), "pb.ProposeResp")
+	proto.RegisterType((*CommitReq)(nil), "pb.CommitReq")
+	proto.RegisterType((*CommitResp)(nil), "pb.CommitResp")
+	proto.RegisterType((*ErrorReq)(nil), "pb.ErrorReq")
+	proto.RegisterType((*ErrorResp)(nil), "pb.ErrorResp")
+	proto.RegisterType((*ConsumeSnapshotReq)(nil), "pb.ConsumeSnapshotReq")
+	proto.RegisterType((*ConsumeSnapshotResp)(nil), "pb.ConsumeSnapshotResp")
+	proto.RegisterType((*ProvideSnapshotReq)(nil), "pb.ProvideSnapshotReq")
+	proto.RegisterType((*ProvideSnapshotResp)(nil), "pb.ProvideSnapshotResp")
 	proto.RegisterType((*SendReq)(nil), "pb.SendReq")
 	proto.RegisterType((*SendResp)(nil), "pb.SendResp")
 	proto.RegisterType((*StartRaftRequest)(nil), "pb.StartRaftRequest")
@@ -230,6 +340,347 @@ var _ grpc.ClientConn
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
+
+// Client API for DataStructureService service
+
+type DataStructureServiceClient interface {
+	// A client keeps sending operations into this stream.
+	// CopyCat will consume this stream and try to achieve consensus.
+	Propose(ctx context.Context, opts ...grpc.CallOption) (DataStructureService_ProposeClient, error)
+	// All changes that CopyCat accepted and committed will be replayed via this stream.
+	// This stream will contain all committed operations that have been sent to the propose stream.
+	Commit(ctx context.Context, in *CommitReq, opts ...grpc.CallOption) (DataStructureService_CommitClient, error)
+	// If CopyCay runs into an error when trying to commit a change, this stream will contain an error.
+	Error(ctx context.Context, in *ErrorReq, opts ...grpc.CallOption) (DataStructureService_ErrorClient, error)
+	// Then the commit stream hints that a new snapshot is available, this endpoint will provide it to you.
+	ConsumeSnapshot(ctx context.Context, in *ConsumeSnapshotReq, opts ...grpc.CallOption) (*ConsumeSnapshotResp, error)
+	// This endpoint will be used to provide a consistent snapshot of data to CopyCat.
+	// In regular intervals CopyCat will ask for a consistent snapshot of your data structure.
+	// Clients are required to send a request to this endpoint as soon as they start interacting
+	// with a data sturcture. After they get a response from this endpoint, they need to reply
+	// to the response with another message containing a snapshot of the data structure.
+	// CopyCat will block until it has received the snapshot.
+	ProvideSnapshot(ctx context.Context, opts ...grpc.CallOption) (DataStructureService_ProvideSnapshotClient, error)
+}
+
+type dataStructureServiceClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewDataStructureServiceClient(cc *grpc.ClientConn) DataStructureServiceClient {
+	return &dataStructureServiceClient{cc}
+}
+
+func (c *dataStructureServiceClient) Propose(ctx context.Context, opts ...grpc.CallOption) (DataStructureService_ProposeClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_DataStructureService_serviceDesc.Streams[0], c.cc, "/pb.DataStructureService/Propose", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dataStructureServiceProposeClient{stream}
+	return x, nil
+}
+
+type DataStructureService_ProposeClient interface {
+	Send(*ProposeReq) error
+	CloseAndRecv() (*ProposeResp, error)
+	grpc.ClientStream
+}
+
+type dataStructureServiceProposeClient struct {
+	grpc.ClientStream
+}
+
+func (x *dataStructureServiceProposeClient) Send(m *ProposeReq) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *dataStructureServiceProposeClient) CloseAndRecv() (*ProposeResp, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(ProposeResp)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *dataStructureServiceClient) Commit(ctx context.Context, in *CommitReq, opts ...grpc.CallOption) (DataStructureService_CommitClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_DataStructureService_serviceDesc.Streams[1], c.cc, "/pb.DataStructureService/Commit", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dataStructureServiceCommitClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DataStructureService_CommitClient interface {
+	Recv() (*CommitResp, error)
+	grpc.ClientStream
+}
+
+type dataStructureServiceCommitClient struct {
+	grpc.ClientStream
+}
+
+func (x *dataStructureServiceCommitClient) Recv() (*CommitResp, error) {
+	m := new(CommitResp)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *dataStructureServiceClient) Error(ctx context.Context, in *ErrorReq, opts ...grpc.CallOption) (DataStructureService_ErrorClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_DataStructureService_serviceDesc.Streams[2], c.cc, "/pb.DataStructureService/Error", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dataStructureServiceErrorClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DataStructureService_ErrorClient interface {
+	Recv() (*ErrorResp, error)
+	grpc.ClientStream
+}
+
+type dataStructureServiceErrorClient struct {
+	grpc.ClientStream
+}
+
+func (x *dataStructureServiceErrorClient) Recv() (*ErrorResp, error) {
+	m := new(ErrorResp)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *dataStructureServiceClient) ConsumeSnapshot(ctx context.Context, in *ConsumeSnapshotReq, opts ...grpc.CallOption) (*ConsumeSnapshotResp, error) {
+	out := new(ConsumeSnapshotResp)
+	err := grpc.Invoke(ctx, "/pb.DataStructureService/ConsumeSnapshot", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dataStructureServiceClient) ProvideSnapshot(ctx context.Context, opts ...grpc.CallOption) (DataStructureService_ProvideSnapshotClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_DataStructureService_serviceDesc.Streams[3], c.cc, "/pb.DataStructureService/ProvideSnapshot", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dataStructureServiceProvideSnapshotClient{stream}
+	return x, nil
+}
+
+type DataStructureService_ProvideSnapshotClient interface {
+	Send(*ProvideSnapshotReq) error
+	Recv() (*ProvideSnapshotResp, error)
+	grpc.ClientStream
+}
+
+type dataStructureServiceProvideSnapshotClient struct {
+	grpc.ClientStream
+}
+
+func (x *dataStructureServiceProvideSnapshotClient) Send(m *ProvideSnapshotReq) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *dataStructureServiceProvideSnapshotClient) Recv() (*ProvideSnapshotResp, error) {
+	m := new(ProvideSnapshotResp)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// Server API for DataStructureService service
+
+type DataStructureServiceServer interface {
+	// A client keeps sending operations into this stream.
+	// CopyCat will consume this stream and try to achieve consensus.
+	Propose(DataStructureService_ProposeServer) error
+	// All changes that CopyCat accepted and committed will be replayed via this stream.
+	// This stream will contain all committed operations that have been sent to the propose stream.
+	Commit(*CommitReq, DataStructureService_CommitServer) error
+	// If CopyCay runs into an error when trying to commit a change, this stream will contain an error.
+	Error(*ErrorReq, DataStructureService_ErrorServer) error
+	// Then the commit stream hints that a new snapshot is available, this endpoint will provide it to you.
+	ConsumeSnapshot(context.Context, *ConsumeSnapshotReq) (*ConsumeSnapshotResp, error)
+	// This endpoint will be used to provide a consistent snapshot of data to CopyCat.
+	// In regular intervals CopyCat will ask for a consistent snapshot of your data structure.
+	// Clients are required to send a request to this endpoint as soon as they start interacting
+	// with a data sturcture. After they get a response from this endpoint, they need to reply
+	// to the response with another message containing a snapshot of the data structure.
+	// CopyCat will block until it has received the snapshot.
+	ProvideSnapshot(DataStructureService_ProvideSnapshotServer) error
+}
+
+func RegisterDataStructureServiceServer(s *grpc.Server, srv DataStructureServiceServer) {
+	s.RegisterService(&_DataStructureService_serviceDesc, srv)
+}
+
+func _DataStructureService_Propose_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(DataStructureServiceServer).Propose(&dataStructureServiceProposeServer{stream})
+}
+
+type DataStructureService_ProposeServer interface {
+	SendAndClose(*ProposeResp) error
+	Recv() (*ProposeReq, error)
+	grpc.ServerStream
+}
+
+type dataStructureServiceProposeServer struct {
+	grpc.ServerStream
+}
+
+func (x *dataStructureServiceProposeServer) SendAndClose(m *ProposeResp) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *dataStructureServiceProposeServer) Recv() (*ProposeReq, error) {
+	m := new(ProposeReq)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func _DataStructureService_Commit_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(CommitReq)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DataStructureServiceServer).Commit(m, &dataStructureServiceCommitServer{stream})
+}
+
+type DataStructureService_CommitServer interface {
+	Send(*CommitResp) error
+	grpc.ServerStream
+}
+
+type dataStructureServiceCommitServer struct {
+	grpc.ServerStream
+}
+
+func (x *dataStructureServiceCommitServer) Send(m *CommitResp) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _DataStructureService_Error_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ErrorReq)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DataStructureServiceServer).Error(m, &dataStructureServiceErrorServer{stream})
+}
+
+type DataStructureService_ErrorServer interface {
+	Send(*ErrorResp) error
+	grpc.ServerStream
+}
+
+type dataStructureServiceErrorServer struct {
+	grpc.ServerStream
+}
+
+func (x *dataStructureServiceErrorServer) Send(m *ErrorResp) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _DataStructureService_ConsumeSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConsumeSnapshotReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DataStructureServiceServer).ConsumeSnapshot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.DataStructureService/ConsumeSnapshot",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DataStructureServiceServer).ConsumeSnapshot(ctx, req.(*ConsumeSnapshotReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DataStructureService_ProvideSnapshot_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(DataStructureServiceServer).ProvideSnapshot(&dataStructureServiceProvideSnapshotServer{stream})
+}
+
+type DataStructureService_ProvideSnapshotServer interface {
+	Send(*ProvideSnapshotResp) error
+	Recv() (*ProvideSnapshotReq, error)
+	grpc.ServerStream
+}
+
+type dataStructureServiceProvideSnapshotServer struct {
+	grpc.ServerStream
+}
+
+func (x *dataStructureServiceProvideSnapshotServer) Send(m *ProvideSnapshotResp) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *dataStructureServiceProvideSnapshotServer) Recv() (*ProvideSnapshotReq, error) {
+	m := new(ProvideSnapshotReq)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+var _DataStructureService_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "pb.DataStructureService",
+	HandlerType: (*DataStructureServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ConsumeSnapshot",
+			Handler:    _DataStructureService_ConsumeSnapshot_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Propose",
+			Handler:       _DataStructureService_Propose_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "Commit",
+			Handler:       _DataStructureService_Commit_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "Error",
+			Handler:       _DataStructureService_Error_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ProvideSnapshot",
+			Handler:       _DataStructureService_ProvideSnapshot_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
+	Metadata: "pb/copycat.proto",
+}
 
 // Client API for RaftTransportService service
 
@@ -630,6 +1081,241 @@ func (m *HostedItems) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *ProposeReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ProposeReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.DataStructureId != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintCopycat(dAtA, i, uint64(m.DataStructureId))
+	}
+	if len(m.Data) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintCopycat(dAtA, i, uint64(len(m.Data)))
+		i += copy(dAtA[i:], m.Data)
+	}
+	return i, nil
+}
+
+func (m *ProposeResp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ProposeResp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
+func (m *CommitReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CommitReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.DataStructureId != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintCopycat(dAtA, i, uint64(m.DataStructureId))
+	}
+	return i, nil
+}
+
+func (m *CommitResp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CommitResp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Data) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintCopycat(dAtA, i, uint64(len(m.Data)))
+		i += copy(dAtA[i:], m.Data)
+	}
+	return i, nil
+}
+
+func (m *ErrorReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ErrorReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.DataStructureId != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintCopycat(dAtA, i, uint64(m.DataStructureId))
+	}
+	return i, nil
+}
+
+func (m *ErrorResp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ErrorResp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Error) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintCopycat(dAtA, i, uint64(len(m.Error)))
+		i += copy(dAtA[i:], m.Error)
+	}
+	return i, nil
+}
+
+func (m *ConsumeSnapshotReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ConsumeSnapshotReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.DataStructureId != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintCopycat(dAtA, i, uint64(m.DataStructureId))
+	}
+	return i, nil
+}
+
+func (m *ConsumeSnapshotResp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ConsumeSnapshotResp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Data) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintCopycat(dAtA, i, uint64(len(m.Data)))
+		i += copy(dAtA[i:], m.Data)
+	}
+	return i, nil
+}
+
+func (m *ProvideSnapshotReq) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ProvideSnapshotReq) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.DataStructureId != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintCopycat(dAtA, i, uint64(m.DataStructureId))
+	}
+	if len(m.Data) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintCopycat(dAtA, i, uint64(len(m.Data)))
+		i += copy(dAtA[i:], m.Data)
+	}
+	return i, nil
+}
+
+func (m *ProvideSnapshotResp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ProvideSnapshotResp) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
 func (m *SendReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -863,6 +1549,101 @@ func (m *HostedItems) Size() (n int) {
 			n += mapEntrySize + 1 + sovCopycat(uint64(mapEntrySize))
 		}
 	}
+	return n
+}
+
+func (m *ProposeReq) Size() (n int) {
+	var l int
+	_ = l
+	if m.DataStructureId != 0 {
+		n += 1 + sovCopycat(uint64(m.DataStructureId))
+	}
+	l = len(m.Data)
+	if l > 0 {
+		n += 1 + l + sovCopycat(uint64(l))
+	}
+	return n
+}
+
+func (m *ProposeResp) Size() (n int) {
+	var l int
+	_ = l
+	return n
+}
+
+func (m *CommitReq) Size() (n int) {
+	var l int
+	_ = l
+	if m.DataStructureId != 0 {
+		n += 1 + sovCopycat(uint64(m.DataStructureId))
+	}
+	return n
+}
+
+func (m *CommitResp) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.Data)
+	if l > 0 {
+		n += 1 + l + sovCopycat(uint64(l))
+	}
+	return n
+}
+
+func (m *ErrorReq) Size() (n int) {
+	var l int
+	_ = l
+	if m.DataStructureId != 0 {
+		n += 1 + sovCopycat(uint64(m.DataStructureId))
+	}
+	return n
+}
+
+func (m *ErrorResp) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.Error)
+	if l > 0 {
+		n += 1 + l + sovCopycat(uint64(l))
+	}
+	return n
+}
+
+func (m *ConsumeSnapshotReq) Size() (n int) {
+	var l int
+	_ = l
+	if m.DataStructureId != 0 {
+		n += 1 + sovCopycat(uint64(m.DataStructureId))
+	}
+	return n
+}
+
+func (m *ConsumeSnapshotResp) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.Data)
+	if l > 0 {
+		n += 1 + l + sovCopycat(uint64(l))
+	}
+	return n
+}
+
+func (m *ProvideSnapshotReq) Size() (n int) {
+	var l int
+	_ = l
+	if m.DataStructureId != 0 {
+		n += 1 + sovCopycat(uint64(m.DataStructureId))
+	}
+	l = len(m.Data)
+	if l > 0 {
+		n += 1 + l + sovCopycat(uint64(l))
+	}
+	return n
+}
+
+func (m *ProvideSnapshotResp) Size() (n int) {
+	var l int
+	_ = l
 	return n
 }
 
@@ -1697,6 +2478,754 @@ func (m *HostedItems) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *ProposeReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCopycat
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ProposeReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ProposeReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DataStructureId", wireType)
+			}
+			m.DataStructureId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCopycat
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DataStructureId |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Data", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCopycat
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Data = append(m.Data[:0], dAtA[iNdEx:postIndex]...)
+			if m.Data == nil {
+				m.Data = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCopycat(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ProposeResp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCopycat
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ProposeResp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ProposeResp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCopycat(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CommitReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCopycat
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CommitReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CommitReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DataStructureId", wireType)
+			}
+			m.DataStructureId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCopycat
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DataStructureId |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCopycat(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CommitResp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCopycat
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CommitResp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CommitResp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Data", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCopycat
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Data = append(m.Data[:0], dAtA[iNdEx:postIndex]...)
+			if m.Data == nil {
+				m.Data = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCopycat(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ErrorReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCopycat
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ErrorReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ErrorReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DataStructureId", wireType)
+			}
+			m.DataStructureId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCopycat
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DataStructureId |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCopycat(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ErrorResp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCopycat
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ErrorResp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ErrorResp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCopycat
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Error = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCopycat(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ConsumeSnapshotReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCopycat
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ConsumeSnapshotReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ConsumeSnapshotReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DataStructureId", wireType)
+			}
+			m.DataStructureId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCopycat
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DataStructureId |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCopycat(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ConsumeSnapshotResp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCopycat
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ConsumeSnapshotResp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ConsumeSnapshotResp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Data", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCopycat
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Data = append(m.Data[:0], dAtA[iNdEx:postIndex]...)
+			if m.Data == nil {
+				m.Data = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCopycat(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ProvideSnapshotReq) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCopycat
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ProvideSnapshotReq: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ProvideSnapshotReq: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DataStructureId", wireType)
+			}
+			m.DataStructureId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCopycat
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DataStructureId |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Data", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCopycat
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Data = append(m.Data[:0], dAtA[iNdEx:postIndex]...)
+			if m.Data == nil {
+				m.Data = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCopycat(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ProvideSnapshotResp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCopycat
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ProvideSnapshotResp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ProvideSnapshotResp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCopycat(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthCopycat
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *SendReq) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -2224,44 +3753,56 @@ var (
 func init() { proto.RegisterFile("pb/copycat.proto", fileDescriptorCopycat) }
 
 var fileDescriptorCopycat = []byte{
-	// 617 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x54, 0x51, 0x6e, 0xd3, 0x4c,
-	0x10, 0xce, 0xa6, 0x69, 0xd3, 0x8e, 0x7f, 0x25, 0xfe, 0xb7, 0xa6, 0x44, 0x96, 0x08, 0x91, 0x5f,
-	0x48, 0x2b, 0xb0, 0x51, 0xa8, 0x44, 0x55, 0x09, 0x21, 0x5a, 0xaa, 0xd2, 0x87, 0x54, 0xe0, 0xf4,
-	0x02, 0x6b, 0x7b, 0x1b, 0x2c, 0x70, 0x76, 0xd9, 0x5d, 0x57, 0xca, 0x01, 0xb8, 0x5b, 0x5f, 0x90,
-	0x7a, 0x04, 0xda, 0x93, 0x20, 0x7b, 0xed, 0xd4, 0x0e, 0x04, 0xfa, 0x92, 0xec, 0x7c, 0x33, 0xdf,
-	0xcc, 0xec, 0xcc, 0xb7, 0x06, 0x93, 0x07, 0x5e, 0xc8, 0xf8, 0x3c, 0x24, 0xca, 0xe5, 0x82, 0x29,
-	0x86, 0x9b, 0x3c, 0xb0, 0xad, 0x29, 0x9b, 0xb2, 0xdc, 0xf4, 0xb2, 0x93, 0xf6, 0xd8, 0x2f, 0xa6,
-	0xb1, 0xfa, 0x9c, 0x06, 0x6e, 0xc8, 0x12, 0x2f, 0x64, 0x82, 0x32, 0xe9, 0x51, 0x15, 0x46, 0x9e,
-	0x20, 0x97, 0x2a, 0xff, 0xe1, 0x41, 0xfe, 0xa7, 0xc3, 0x1d, 0x02, 0xed, 0x0b, 0x2a, 0xd5, 0x31,
-	0x51, 0x78, 0x00, 0x28, 0xe9, 0xa1, 0xc1, 0xda, 0xd0, 0x18, 0x61, 0x97, 0x07, 0x6e, 0x81, 0xbb,
-	0xe3, 0x93, 0x99, 0x12, 0x73, 0x1f, 0x25, 0xf6, 0x3e, 0x6c, 0x68, 0x03, 0x9b, 0xb0, 0xf6, 0x85,
-	0xce, 0x7b, 0x68, 0x80, 0x86, 0x5b, 0x7e, 0x76, 0xc4, 0x16, 0xac, 0x5f, 0x91, 0xaf, 0x29, 0xed,
-	0x35, 0x73, 0x4c, 0x1b, 0x87, 0xcd, 0x03, 0xe4, 0x3c, 0x07, 0xec, 0x93, 0x4b, 0x75, 0x16, 0x7d,
-	0x4a, 0xa9, 0x98, 0xfb, 0xf4, 0x5b, 0x4a, 0xa5, 0xc2, 0x3b, 0xb0, 0xa1, 0xd1, 0x3c, 0x49, 0xcb,
-	0x2f, 0x2c, 0xe7, 0x14, 0xb6, 0x6b, 0xd1, 0x92, 0xb3, 0x99, 0xa4, 0xab, 0xc2, 0x71, 0x0f, 0xda,
-	0xef, 0xa2, 0x48, 0x50, 0x29, 0x8b, 0xc2, 0xa5, 0xe9, 0x1c, 0xc1, 0xce, 0x7b, 0xa2, 0xc8, 0x44,
-	0x89, 0x34, 0x54, 0xa9, 0xa0, 0x67, 0x51, 0x59, 0x7a, 0x08, 0xdd, 0x25, 0x4f, 0x91, 0x74, 0x19,
-	0x76, 0x52, 0x78, 0xfc, 0x5b, 0x8e, 0xa2, 0xa1, 0x07, 0x27, 0xa9, 0xb4, 0xde, 0x5c, 0xd5, 0xfa,
-	0x5a, 0xbd, 0xf5, 0x03, 0x68, 0x7d, 0xa4, 0x54, 0xe0, 0x0e, 0x34, 0xe3, 0x32, 0x6d, 0x33, 0x8e,
-	0xf0, 0x00, 0x8c, 0x6c, 0x75, 0xf5, 0x0b, 0x57, 0x21, 0xe7, 0x07, 0x02, 0xe3, 0x03, 0x93, 0x8a,
-	0x46, 0x67, 0x8a, 0x26, 0x12, 0x33, 0xb0, 0x6b, 0xed, 0x5c, 0xb0, 0xac, 0xf8, 0x98, 0x70, 0x1e,
-	0xcf, 0xa6, 0xc5, 0xb2, 0xbd, 0x6c, 0xd9, 0x15, 0x92, 0xbb, 0x9a, 0xa1, 0x95, 0xf0, 0x97, 0x94,
-	0xf6, 0x18, 0x9e, 0xfe, 0x83, 0x5e, 0xd5, 0x4e, 0xeb, 0x0f, 0xda, 0x69, 0x55, 0xb5, 0xb3, 0x0f,
-	0xed, 0x09, 0x9d, 0x65, 0x9b, 0xc3, 0xbb, 0xd0, 0x4e, 0xa8, 0x94, 0x64, 0x4a, 0x73, 0xaa, 0x31,
-	0xea, 0xba, 0x5a, 0xce, 0xee, 0x58, 0xc3, 0x7e, 0xe9, 0x77, 0xf6, 0x61, 0x53, 0xb3, 0x24, 0xc7,
-	0x43, 0x58, 0xa7, 0x42, 0x30, 0x91, 0x93, 0x3a, 0x85, 0xb2, 0x05, 0x99, 0x49, 0xce, 0x84, 0x3a,
-	0xc9, 0x3c, 0xbe, 0x0e, 0x70, 0x30, 0x98, 0x13, 0x45, 0x84, 0xca, 0x1a, 0x2e, 0xa4, 0xe2, 0x8c,
-	0xe1, 0xff, 0x0a, 0x76, 0xaf, 0x45, 0x51, 0xd3, 0xa2, 0xb6, 0x1e, 0xb0, 0x9e, 0x5d, 0xe8, 0x4e,
-	0x14, 0xe3, 0x95, 0x0a, 0xab, 0x92, 0xe9, 0x6e, 0xca, 0x50, 0x5d, 0x78, 0xef, 0x0d, 0x98, 0xa7,
-	0x4c, 0xca, 0x98, 0xe7, 0x6f, 0xe3, 0x9c, 0x24, 0x54, 0xe2, 0x2e, 0x18, 0x95, 0xf7, 0x62, 0x36,
-	0x70, 0x0f, 0xac, 0x25, 0x05, 0x6a, 0x0f, 0xda, 0x7b, 0x02, 0x9d, 0xfa, 0xcd, 0xb1, 0x01, 0xed,
-	0x73, 0x96, 0x1f, 0xcd, 0xc6, 0xe8, 0x2d, 0x58, 0x59, 0xa6, 0x45, 0xc8, 0x84, 0x8a, 0xab, 0x38,
-	0xa4, 0xf8, 0x19, 0xb4, 0xb2, 0x69, 0x62, 0x23, 0x1b, 0x5d, 0xb1, 0x0d, 0xfb, 0xbf, 0x7b, 0x43,
-	0x72, 0xa7, 0x31, 0x44, 0x2f, 0xd1, 0xe8, 0x3b, 0x82, 0xce, 0x31, 0xe3, 0xf3, 0x63, 0xb2, 0xe0,
-	0x1e, 0xc2, 0xd6, 0x62, 0x7e, 0xd8, 0xca, 0x39, 0x4b, 0x23, 0xb6, 0x1f, 0x2d, 0xa1, 0xfa, 0xae,
-	0x4e, 0x03, 0xbf, 0x86, 0xcd, 0x72, 0x02, 0x78, 0x5b, 0x07, 0xd5, 0x46, 0x67, 0x5b, 0x75, 0xb0,
-	0x24, 0x1e, 0x59, 0xd7, 0xb7, 0xfd, 0xc6, 0xcd, 0x6d, 0xbf, 0x71, 0x7d, 0xd7, 0x47, 0x37, 0x77,
-	0x7d, 0xf4, 0xf3, 0xae, 0x8f, 0x82, 0x8d, 0xfc, 0x83, 0xf7, 0xea, 0x57, 0x00, 0x00, 0x00, 0xff,
-	0xff, 0x7a, 0x50, 0xcc, 0xc5, 0x4d, 0x05, 0x00, 0x00,
+	// 810 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x56, 0xe1, 0x6e, 0xe2, 0x46,
+	0x10, 0x66, 0x09, 0x85, 0x63, 0x48, 0x80, 0x2e, 0x5c, 0x0e, 0x59, 0x2a, 0xa5, 0xfe, 0x53, 0x72,
+	0x6d, 0xcd, 0x89, 0xa6, 0xea, 0xe9, 0xa4, 0xb6, 0xea, 0x71, 0xa7, 0x3b, 0x2a, 0x11, 0xa5, 0x26,
+	0x2f, 0x60, 0xf0, 0x86, 0xa0, 0xd6, 0xec, 0x66, 0x77, 0x1d, 0x89, 0x07, 0xe8, 0xe3, 0xf4, 0x3d,
+	0xf2, 0xa7, 0x52, 0x1e, 0xa1, 0xc9, 0x93, 0x54, 0xeb, 0x5d, 0x3b, 0xb6, 0x81, 0xa6, 0xf4, 0x4f,
+	0xb2, 0x33, 0x3b, 0xdf, 0x37, 0xe3, 0xd9, 0x6f, 0x46, 0x40, 0x93, 0xcd, 0x06, 0x73, 0xca, 0xd6,
+	0x73, 0x4f, 0x3a, 0x8c, 0x53, 0x49, 0x71, 0x91, 0xcd, 0xac, 0xf6, 0x82, 0x2e, 0x68, 0x64, 0x0e,
+	0xd4, 0x49, 0xdf, 0x58, 0xdf, 0x2c, 0x96, 0xf2, 0x2a, 0x9c, 0x39, 0x73, 0x1a, 0x0c, 0xe6, 0x94,
+	0x13, 0x2a, 0x06, 0x44, 0xce, 0xfd, 0x01, 0xf7, 0x2e, 0x65, 0xf4, 0x87, 0xcd, 0xa2, 0x7f, 0x3a,
+	0xdc, 0xf6, 0xa0, 0x72, 0x41, 0x84, 0x1c, 0x79, 0x12, 0xf7, 0x00, 0x05, 0x1d, 0xd4, 0x3b, 0xe8,
+	0xd7, 0x86, 0xd8, 0x61, 0x33, 0xc7, 0xf8, 0x9d, 0xc9, 0xfb, 0x95, 0xe4, 0x6b, 0x17, 0x05, 0xd6,
+	0x29, 0x94, 0xb5, 0x81, 0x9b, 0x70, 0xf0, 0x1b, 0x59, 0x77, 0x50, 0x0f, 0xf5, 0xab, 0xae, 0x3a,
+	0xe2, 0x36, 0x7c, 0x72, 0xe3, 0xfd, 0x1e, 0x92, 0x4e, 0x31, 0xf2, 0x69, 0xe3, 0x4d, 0xf1, 0x35,
+	0xb2, 0xbf, 0x06, 0xec, 0x7a, 0x97, 0x72, 0xec, 0xff, 0x1a, 0x12, 0xbe, 0x76, 0xc9, 0x75, 0x48,
+	0x84, 0xc4, 0xc7, 0x50, 0xd6, 0xde, 0x88, 0xa4, 0xe4, 0x1a, 0xcb, 0xfe, 0x00, 0xad, 0x4c, 0xb4,
+	0x60, 0x74, 0x25, 0xc8, 0xae, 0x70, 0xdc, 0x81, 0xca, 0xcf, 0xbe, 0xcf, 0x89, 0x10, 0x26, 0x71,
+	0x6c, 0xda, 0x6f, 0xe1, 0xf8, 0x9d, 0x27, 0xbd, 0xa9, 0xe4, 0xe1, 0x5c, 0x86, 0x9c, 0x8c, 0xfd,
+	0x38, 0x75, 0x1f, 0x1a, 0xb9, 0x1b, 0x43, 0x9a, 0x77, 0xdb, 0x21, 0xbc, 0xd8, 0xe0, 0x30, 0x05,
+	0xfd, 0x67, 0x92, 0x54, 0xe9, 0xc5, 0x5d, 0xa5, 0x1f, 0x64, 0x4b, 0x7f, 0x0d, 0xa5, 0x73, 0x42,
+	0x38, 0xae, 0x43, 0x31, 0xa1, 0x2d, 0x8e, 0x7d, 0xdc, 0x83, 0x9a, 0xc2, 0x66, 0x3f, 0x38, 0xed,
+	0xb2, 0xff, 0x42, 0x50, 0xfb, 0x48, 0x85, 0x24, 0xfe, 0x58, 0x92, 0x40, 0x60, 0x0a, 0x56, 0xa6,
+	0x9c, 0x0b, 0xaa, 0xa2, 0x27, 0x1e, 0x63, 0xcb, 0xd5, 0xc2, 0x3c, 0xf6, 0x40, 0x3d, 0x76, 0x0a,
+	0xe4, 0xec, 0x46, 0x68, 0x25, 0xfc, 0x0b, 0xa5, 0x35, 0x81, 0xcf, 0x9f, 0x80, 0xa7, 0xb5, 0x53,
+	0xda, 0xa2, 0x9d, 0x52, 0x5a, 0x3b, 0xbf, 0x00, 0x9c, 0x73, 0xca, 0xa8, 0x20, 0x2e, 0xb9, 0xde,
+	0xa3, 0xe7, 0x18, 0x4a, 0xca, 0x15, 0x11, 0x1e, 0xba, 0xd1, 0xd9, 0x3e, 0x82, 0x5a, 0xc2, 0x25,
+	0x98, 0xfd, 0x1d, 0x54, 0x47, 0x34, 0x08, 0x96, 0x72, 0x2f, 0x66, 0xbb, 0x07, 0x10, 0xc3, 0x04,
+	0x4b, 0xf2, 0xa0, 0x54, 0x9e, 0x53, 0x78, 0xf6, 0x9e, 0x73, 0xca, 0xf7, 0xe3, 0xfd, 0x02, 0xaa,
+	0x06, 0x25, 0x98, 0x6a, 0x48, 0x64, 0x98, 0x01, 0xd3, 0x86, 0xfd, 0x23, 0xe0, 0x11, 0x5d, 0x89,
+	0x30, 0x20, 0xd3, 0x95, 0xc7, 0xc4, 0x15, 0xdd, 0xb3, 0xf4, 0x13, 0x68, 0x6d, 0xe0, 0x77, 0x7c,
+	0x83, 0x0b, 0xf8, 0x9c, 0xd3, 0x9b, 0xa5, 0xff, 0xff, 0x52, 0x6d, 0xed, 0xff, 0x73, 0x68, 0x6d,
+	0x70, 0x0a, 0x66, 0x9f, 0x42, 0x65, 0x4a, 0x56, 0x6a, 0x38, 0xf1, 0x09, 0x54, 0x26, 0x44, 0x08,
+	0x6f, 0x41, 0x22, 0xde, 0xda, 0xb0, 0xe1, 0xe8, 0x8d, 0xe5, 0x18, 0xb7, 0x1b, 0xdf, 0xab, 0x26,
+	0x6b, 0x94, 0x60, 0xb8, 0x9f, 0xee, 0x56, 0xdd, 0x2c, 0x2f, 0xee, 0xad, 0x04, 0xa3, 0x5c, 0xea,
+	0xa6, 0x9a, 0x0e, 0x62, 0x68, 0x4e, 0xa5, 0xc7, 0xa5, 0xd2, 0xa4, 0xd9, 0x06, 0xf6, 0x04, 0x3e,
+	0x4d, 0xf9, 0x9e, 0x58, 0x37, 0x4f, 0x4f, 0xe0, 0x09, 0x34, 0xa6, 0x92, 0xb2, 0x54, 0x86, 0x9d,
+	0xab, 0x2e, 0xaa, 0x26, 0x0e, 0xd5, 0x89, 0x5f, 0xfe, 0x00, 0xcd, 0x0f, 0x54, 0x88, 0x25, 0x8b,
+	0xd6, 0xdf, 0x99, 0x17, 0x10, 0x81, 0x1b, 0x3a, 0xa9, 0x59, 0x89, 0xcd, 0x02, 0xee, 0x40, 0x3b,
+	0xd7, 0x70, 0x7d, 0x83, 0x5e, 0x7e, 0x06, 0xf5, 0xec, 0x97, 0xe3, 0x1a, 0x54, 0xce, 0x68, 0x74,
+	0x6c, 0x16, 0x86, 0x7f, 0x16, 0x73, 0xc8, 0x29, 0xe1, 0x37, 0xcb, 0x39, 0xc1, 0x0e, 0x54, 0xcc,
+	0x6c, 0xe0, 0xba, 0x6a, 0xdf, 0xe3, 0xd0, 0x59, 0x8d, 0x8c, 0x2d, 0x98, 0x5d, 0xe8, 0x23, 0xfc,
+	0x15, 0x94, 0xf5, 0x14, 0xe0, 0x23, 0x75, 0x9d, 0x0c, 0x92, 0x55, 0x4f, 0x9b, 0x2a, 0xf8, 0x15,
+	0x4a, 0xde, 0x07, 0x1f, 0xaa, 0xcb, 0x78, 0x36, 0xac, 0xa3, 0x94, 0x65, 0x22, 0xdf, 0x41, 0x23,
+	0xa7, 0x50, 0x7c, 0xac, 0x09, 0xf3, 0xb2, 0xb7, 0x5e, 0x6c, 0xf5, 0x2b, 0x1e, 0xfc, 0x11, 0x1a,
+	0x39, 0xa1, 0x69, 0x96, 0x4d, 0x45, 0x6b, 0x96, 0x6d, 0xaa, 0x2c, 0xf4, 0xd1, 0x2b, 0x34, 0xfc,
+	0x09, 0xda, 0xaa, 0xf3, 0x49, 0x4b, 0xe3, 0x76, 0x7d, 0x09, 0x25, 0xa5, 0x3e, 0x5c, 0x53, 0x70,
+	0xa3, 0x5e, 0xeb, 0xf0, 0xd1, 0x48, 0x08, 0xfe, 0x40, 0x50, 0x1f, 0x51, 0xb6, 0x1e, 0x79, 0x09,
+	0xf6, 0x0d, 0x54, 0x13, 0xbd, 0xe1, 0x76, 0x84, 0xc9, 0x49, 0xd2, 0x7a, 0x9e, 0xf3, 0x6a, 0x6d,
+	0xd8, 0x05, 0xfc, 0x3d, 0x3c, 0x8b, 0x15, 0x83, 0x5b, 0x3a, 0x28, 0x23, 0x35, 0xab, 0x9d, 0x75,
+	0xc6, 0xc0, 0xb7, 0xed, 0xdb, 0xfb, 0x6e, 0xe1, 0xee, 0xbe, 0x5b, 0xb8, 0x7d, 0xe8, 0xa2, 0xbb,
+	0x87, 0x2e, 0xfa, 0xfb, 0xa1, 0x8b, 0x66, 0xe5, 0xe8, 0x37, 0xc0, 0xb7, 0xff, 0x04, 0x00, 0x00,
+	0xff, 0xff, 0x23, 0x39, 0x7e, 0x45, 0x60, 0x08, 0x00, 0x00,
 }
