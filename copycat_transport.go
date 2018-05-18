@@ -239,5 +239,6 @@ func (t *copyCatTransport) doIHostDataStructure(dsId uint64) (bool, string) {
 }
 
 func (t *copyCatTransport) stop() {
+	// TODO: stop all local raft backends
 	t.grpcServer.Stop()
 }
