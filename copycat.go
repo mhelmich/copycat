@@ -73,6 +73,22 @@ func (c *copyCatImpl) SubscribeToDataStructure(id uint64, provider SnapshotProvi
 	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
 }
 
+func (c *copyCatImpl) startRaftGroup() error {
+	// TODO: write glue code that lets you connect to a raft backend
+	// or put more generically: figure out raft backend connectivity
+	// localRaft, err := c.transport.StartRaft(context.TODO(), &pb.StartRaftRequest{})
+	// if err != nil {
+	// 	return err
+	// }
+	//
+	// remoteRafts, err := c.choosePeersForNewDataStructure(c.membership.getAllMetadata(), 2)
+	// if err != nil {
+	// 	return err
+	// }
+
+	return nil
+}
+
 func (c *copyCatImpl) choosePeersForNewDataStructure(peersMetadata map[uint64]map[string]string, numPeers int) ([]pb.Peer, error) {
 	newPeers := make([]pb.Peer, numPeers)
 	idxOfPeerToContact := 0
@@ -94,6 +110,7 @@ func (c *copyCatImpl) choosePeersForNewDataStructure(peersMetadata map[uint64]ma
 		select {
 		case peer := <-ch:
 			if peer == nil {
+
 				// I got an empty response from one of the peers I contacted,
 				// let me try another one...
 				if idxOfPeerToContact >= len(peersMetadata) {
@@ -110,8 +127,8 @@ func (c *copyCatImpl) choosePeersForNewDataStructure(peersMetadata map[uint64]ma
 				}
 
 			} else {
-				// if I got a valid response, put it in the array
 
+				// if I got a valid response, put it in the array
 				newPeers[j] = *peer
 				j++
 				if j >= numPeers {
