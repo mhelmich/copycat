@@ -173,11 +173,20 @@ func (m *membership) handleMemberUpdatedEvent(me serf.MemberEvent) {
 
 func (m *membership) handleMemberLeaveEvent(me serf.MemberEvent) {
 	for _, mem := range me.Members {
-		m.logger.Infof("Removing member: %s", mem.Name)
-		// err :=proto.MarshalTextString(pb)
-		// idStr := mem.Tags[serfMDKeyMemberId]
-		// id := stringToUint64(idStr)
-		// m.topology.delete(id)
+		hostedItems := mem.Tags[serfMDKeyHostedItems]
+		hi := &pb.HostedItems{}
+		err := proto.UnmarshalText(hostedItems, hi)
+		if err != nil {
+			m.logger.Errorf("Can't unmarshall hosted items for node [%s]: %s", mem.Name, err.Error())
+		}
+
+		memberId := stringToUint64(mem.Name)
+		delete(m.memberIdToTags, memberId)
+
+		for dsId, raftId := range hi.DataStructureToRaftMapping {
+			delete(m.raftIdToAddress, raftId)
+			delete(m.dataStructureIdToRaftIds[dsId], raftId)
+		}
 	}
 }
 
