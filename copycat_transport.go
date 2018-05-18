@@ -29,7 +29,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-func newTransport(config *CopyCatConfig, membership *membership) (*copyCatTransport, error) {
+func newTransport(config *Config, membership *membership) (*copyCatTransport, error) {
 	logger := config.logger.WithFields(log.Fields{
 		"component": "copycat_transport",
 	})
@@ -59,18 +59,18 @@ func newTransport(config *CopyCatConfig, membership *membership) (*copyCatTransp
 }
 
 type copyCatTransport struct {
-	config             *CopyCatConfig
+	config             *Config
 	grpcServer         *grpc.Server
 	myAddress          string
 	raftBackends       map[uint64]transportRaftBackend
 	membership         *membership
-	newRaftBackendFunc func(uint64, *CopyCatConfig) (transportRaftBackend, error) // pulled out for testing
+	newRaftBackendFunc func(uint64, *Config) (transportRaftBackend, error) // pulled out for testing
 	logger             *log.Entry
 }
 
 // Yet another level of indirection so that this method can return an interface
 // used for unit testing
-func _transportNewRaftBackend(newRaftId uint64, config *CopyCatConfig) (transportRaftBackend, error) {
+func _transportNewRaftBackend(newRaftId uint64, config *Config) (transportRaftBackend, error) {
 	return newRaftBackendWithId(newRaftId, config)
 }
 

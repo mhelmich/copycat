@@ -117,7 +117,7 @@ func TestTransportStartStopRaft(t *testing.T) {
 	transport := &copyCatTransport{
 		config:       config,
 		raftBackends: make(map[uint64]transportRaftBackend),
-		newRaftBackendFunc: func(uint64, *CopyCatConfig) (transportRaftBackend, error) {
+		newRaftBackendFunc: func(uint64, *Config) (transportRaftBackend, error) {
 			return mockBackend, nil
 		},
 		logger: log.WithFields(log.Fields{

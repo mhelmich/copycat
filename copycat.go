@@ -27,7 +27,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-func newCopyCat(config *CopyCatConfig) (*copyCatImpl, error) {
+func newCopyCat(config *Config) (*copyCatImpl, error) {
 	m, err := newMembership(config)
 	if err != nil {
 		config.logger.Errorf("Can't create membership: %s", err.Error())
@@ -54,7 +54,7 @@ type copyCatImpl struct {
 	transport  *copyCatTransport
 	membership *membership
 	myAddress  string
-	config     *CopyCatConfig
+	config     *Config
 	logger     *log.Entry
 }
 

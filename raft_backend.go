@@ -26,11 +26,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func newRaftBackendWithConfig(config *CopyCatConfig) (*raftBackend, error) {
+func newRaftBackendWithConfig(config *Config) (*raftBackend, error) {
 	return newRaftBackendWithId(randomRaftId(), config)
 }
 
-func newRaftBackendWithId(newRaftId uint64, config *CopyCatConfig) (*raftBackend, error) {
+func newRaftBackendWithId(newRaftId uint64, config *Config) (*raftBackend, error) {
 	logger := config.logger.WithFields(log.Fields{
 		"component": "raftBackend",
 		"raftId":    uint64ToString(newRaftId),

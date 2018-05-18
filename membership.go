@@ -53,7 +53,7 @@ type membership struct {
 	logger *log.Entry
 }
 
-func newMembership(config *CopyCatConfig) (*membership, error) {
+func newMembership(config *Config) (*membership, error) {
 	serfNodeId := uint64ToString(randomRaftId())
 	logger := config.logger.WithFields(log.Fields{
 		"component":   "serf",
