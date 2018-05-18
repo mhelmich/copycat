@@ -58,7 +58,7 @@ func newMembership(config *CopyCatConfig) (*membership, error) {
 	logger := config.logger.WithFields(log.Fields{
 		"component":   "serf",
 		"serf_node":   serfNodeId,
-		"gossip_port": strconv.Itoa(config.gossipPort),
+		"gossip_port": strconv.Itoa(config.GossipPort),
 	})
 
 	serfConfig := serf.DefaultConfig()
@@ -70,7 +70,7 @@ func newMembership(config *CopyCatConfig) (*membership, error) {
 	serfConfig.NodeName = serfNodeId
 	serfConfig.EnableNameConflictResolution = true
 	serfConfig.MemberlistConfig.BindAddr = config.hostname
-	serfConfig.MemberlistConfig.BindPort = config.gossipPort
+	serfConfig.MemberlistConfig.BindPort = config.GossipPort
 	serfConfig.LogOutput = logger.WriterLevel(log.DebugLevel)
 	if strings.HasSuffix(config.CopyCatDataDir, "/") {
 		serfConfig.SnapshotPath = config.CopyCatDataDir + dbName
@@ -80,7 +80,7 @@ func newMembership(config *CopyCatConfig) (*membership, error) {
 
 	serfConfig.Tags = make(map[string]string)
 	serfConfig.Tags[serfMDKeyHost] = config.hostname
-	serfConfig.Tags[serfMDKeySerfPort] = strconv.Itoa(config.gossipPort)
+	serfConfig.Tags[serfMDKeySerfPort] = strconv.Itoa(config.GossipPort)
 	serfConfig.Tags[serfMDKeyCopyCatPort] = strconv.Itoa(config.CopyCatPort)
 	serfConfig.Tags[serfMDKeyLocation] = config.Location
 	serfConfig.Tags[serfMDKeyHostedItems] = proto.MarshalTextString(&pb.HostedItems{
@@ -98,7 +98,7 @@ func newMembership(config *CopyCatConfig) (*membership, error) {
 			logger.Errorf("Couldn't join serf cluster: %s", err.Error())
 		}
 
-		logger.Infof("Contacted %d out of %d nodes", numContactedNodes, len(config.PeersToContact))
+		logger.Infof("Contacted %d out of %d nodes: %s", numContactedNodes, len(config.PeersToContact), strings.Join(config.PeersToContact, ","))
 	} else {
 		logger.Info("No peers defined - starting a brandnew cluster!")
 	}
@@ -122,9 +122,6 @@ func (m *membership) handleSerfEvents(serfEventChannel <-chan serf.Event) {
 			if !ok {
 				return
 			}
-
-			m.logger.Infof("RECEIVING SERF EVENT: %s", serfEvent.String())
-
 			//
 			// Obviously we receive these events multiple times per actual event.
 			// That means we need to do some sort of deduping.
@@ -190,8 +187,6 @@ func (m *membership) handleQuery(query *serf.Query) {
 	if err != nil {
 		m.logger.Errorf("Can't deserialize query type [%s]: %s", query.Name, err.Error())
 	}
-
-	m.logger.Infof("HANDLING QUERY: %s", query.String())
 
 	var bites []byte
 	switch pb.GossipQueryNames(i) {
@@ -303,7 +298,6 @@ func (m *membership) findDataStructureWithId(id uint64) (string, error) {
 				return "", fmt.Errorf("Serf response channel was closed")
 			}
 
-			m.logger.Infof("Got response %v", serfResp)
 			if serfResp.Payload != nil {
 				resp := &pb.DataStructureIdResponse{}
 				err = resp.Unmarshal(serfResp.Payload)
@@ -315,9 +309,6 @@ func (m *membership) findDataStructureWithId(id uint64) (string, error) {
 			return "", fmt.Errorf("Serf query timed out: %s", req.String())
 		}
 	}
-}
-
-func (m *membership) findPeersForNewDataStructure() {
 }
 
 func (m *membership) getAddressesForDataStructureId(dsId uint64) []string {
@@ -345,6 +336,10 @@ func (m *membership) getAddressForRaftId(raftId uint64) string {
 
 func (m *membership) getAddr(tags map[string]string) string {
 	return tags[serfMDKeyHost] + ":" + tags[serfMDKeyCopyCatPort]
+}
+
+func (m *membership) getAllMetadata() map[uint64]map[string]string {
+	return m.memberIdToTags
 }
 
 func (m *membership) stop() error {

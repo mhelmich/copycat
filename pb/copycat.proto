@@ -81,6 +81,7 @@ message HostedItems {
 //////////////////////////////////////////
 ////////////////////////////////
 // SECTION FOR THE DATA STRUCTURE SERVICE
+// UNUSED SO FAR...
 
 service DataStructureService {
   // A client keeps sending operations into this stream.

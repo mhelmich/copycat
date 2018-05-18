@@ -20,7 +20,6 @@ import (
 	"os"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/serf/serf"
@@ -56,9 +55,9 @@ func TestMembershipBasicTwoNodes(t *testing.T) {
 
 	config2 := DefaultConfig()
 	config2.CopyCatDataDir = "./test-TestMembershipBasicTwoNodes-" + uint64ToString(randomRaftId())
-	config2.gossipPort = config2.gossipPort + 10000
+	config2.GossipPort = config2.GossipPort + 10000
 	config2.PeersToContact = make([]string, 1)
-	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.gossipPort)
+	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.GossipPort)
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	m2, err := newMembership(config2)
@@ -159,7 +158,6 @@ func TestMembershipHandleQuery(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-// TODO: doesn't work because the two serf clusters can't establish a UDP connection
 func ___TestMembershipDataStructureQuery(t *testing.T) {
 	config1 := DefaultConfig()
 	config1.hostname = "localhost"
@@ -172,9 +170,9 @@ func ___TestMembershipDataStructureQuery(t *testing.T) {
 	config2 := DefaultConfig()
 	config2.hostname = "localhost"
 	config2.CopyCatDataDir = "./test-TestMembershipDataStructureQuery-" + uint64ToString(randomRaftId())
-	config2.gossipPort = config1.gossipPort + 10000
+	config2.GossipPort = config1.GossipPort + 10000
 	config2.PeersToContact = make([]string, 1)
-	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.gossipPort)
+	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.GossipPort)
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	m2, err := newMembership(config2)
@@ -186,8 +184,6 @@ func ___TestMembershipDataStructureQuery(t *testing.T) {
 	m2.dataStructureIdToRaftIds[randomDSId] = make(map[uint64]bool)
 	m2.dataStructureIdToRaftIds[randomDSId][raftId1] = false
 	m2.raftIdToAddress[raftId1] = theAddressImLookingFor
-
-	time.Sleep(16 * time.Second)
 
 	log.Infof("Querying for DS with id [%d]", randomDSId)
 	address, err := m1.findDataStructureWithId(randomDSId)

@@ -138,7 +138,7 @@ func TestTransportStartStopRaft(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, respStop)
 
-	mockBackend.AssertNumberOfCalls(t, "step", 1)
+	mockBackend.AssertNumberOfCalls(t, "step", 0)
 	mockBackend.AssertNumberOfCalls(t, "stop", 1)
 	err = os.RemoveAll(config.CopyCatDataDir)
 	assert.Nil(t, err)

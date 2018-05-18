@@ -52,7 +52,6 @@ func newTransport(config *CopyCatConfig, membership *membership) (*copyCatTransp
 	}
 
 	pb.RegisterCopyCatServiceServer(transport.grpcServer, transport)
-	pb.RegisterDataStructureServiceServer(transport.grpcServer, transport)
 	pb.RegisterRaftTransportServiceServer(transport.grpcServer, transport)
 	go transport.grpcServer.Serve(lis)
 

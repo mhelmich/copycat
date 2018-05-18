@@ -36,7 +36,7 @@ func DefaultConfig() *CopyCatConfig {
 	return &CopyCatConfig{
 		hostname:       host,
 		CopyCatPort:    defaultCopyCatPort,
-		gossipPort:     defaultCopyCatPort + 1000,
+		GossipPort:     defaultCopyCatPort + 1000,
 		CopyCatDataDir: defaultCopyCatDataDir,
 		Location:       "",
 		logger: log.WithFields(log.Fields{
@@ -51,6 +51,8 @@ func DefaultConfig() *CopyCatConfig {
 type CopyCatConfig struct {
 	// Port of the CopyCat server. The server runs the management interface and the raft state machine.
 	CopyCatPort int
+	// Port on which CopyCat gossips about cluster metadata.
+	GossipPort int
 	// Directory under which this CopyCat instance will put all data it's collecting.
 	CopyCatDataDir string
 	// Simple address of at least one CopyCat peer to contact. The format is "<machine>:<copycat_port>".
@@ -64,7 +66,6 @@ type CopyCatConfig struct {
 	// Popluated internally.
 	raftTransport raftTranport
 	hostname      string
-	gossipPort    int
 	logger        *log.Entry
 }
 
@@ -112,3 +113,5 @@ type transportRaftBackend interface {
 	step(ctx context.Context, msg raftpb.Message) error
 	stop()
 }
+
+type locationChooser func(map[string]string) []string
