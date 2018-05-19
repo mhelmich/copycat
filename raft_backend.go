@@ -26,20 +26,19 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func newRaftBackendWithConfig(config *Config) (*raftBackend, error) {
-	return newRaftBackendWithId(randomRaftId(), config)
+func newInteractiveRaftBackend(config *Config) (*raftBackend, error) {
+	return newRaftBackend(randomRaftId(), config, true)
 }
 
 func newRaftBackendWithId(newRaftId uint64, config *Config) (*raftBackend, error) {
+	return newRaftBackend(newRaftId, config, false)
+}
+
+func newRaftBackend(newRaftId uint64, config *Config, isInteractive bool) (*raftBackend, error) {
 	logger := config.logger.WithFields(log.Fields{
 		"component": "raftBackend",
 		"raftId":    uint64ToString(newRaftId),
 	})
-
-	proposeChan := make(chan []byte)
-	proposeConfChangeChan := make(chan raftpb.ConfChange)
-	commitChan := make(chan []byte)
-	errorChan := make(chan error)
 
 	storeDir := config.CopyCatDataDir + "raft-" + uint64ToString(newRaftId) + "/"
 	startFromExistingState := storageExists(storeDir)
@@ -47,6 +46,18 @@ func newRaftBackendWithId(newRaftId uint64, config *Config) (*raftBackend, error
 	if err != nil {
 		config.logger.Errorf("Can't open data store: %s", err.Error())
 		return nil, err
+	}
+
+	var proposeChan chan []byte
+	var proposeConfChangeChan chan raftpb.ConfChange
+	var commitChan chan []byte
+	var errorChan chan error
+
+	if isInteractive {
+		proposeChan = make(chan []byte)
+		proposeConfChangeChan = make(chan raftpb.ConfChange)
+		commitChan = make(chan []byte)
+		errorChan = make(chan error)
 	}
 
 	rb := &raftBackend{
@@ -59,6 +70,7 @@ func newRaftBackendWithId(newRaftId uint64, config *Config) (*raftBackend, error
 		startFromExistingState: startFromExistingState,
 		stopChan:               make(chan struct{}),
 		transport:              config.raftTransport,
+		isInteractive:          isInteractive,
 		logger:                 logger,
 	}
 
@@ -73,7 +85,6 @@ type raftBackend struct {
 	transport              raftTranport // the transport used to send raft messages to other backends
 	store                  store        // the raft data store
 	startFromExistingState bool         // indicates whether this raft backend starts off with existing state or not
-
 	// proposed changes to the data of this raft group
 	// write-only for the consumer
 	// read-only for the raftBacken
@@ -90,10 +101,15 @@ type raftBackend struct {
 	// write-only for the raftBackend
 	// read-only for the consumer
 	errorChan chan error
-
+	// this object describes the topology of the raft group this backend is part of
 	confState raftpb.ConfState
-	logger    *log.Entry    // the logger to use by this struct
-	stopChan  chan struct{} // signals this raft backend should shut down (only used internally)
+	// An interactive raft backend returns proposal and commit channels.
+	// It listens to them or writes to them respectively.
+	// A detached raft backend only answers to messages it receives via the network transport.
+	// Backends cannot be converted from one to the other. Once created, they are created.
+	isInteractive bool
+	logger        *log.Entry    // the logger to use by this struct
+	stopChan      chan struct{} // signals this raft backend should shut down (only used internally)
 }
 
 func (rb *raftBackend) startRaft() {
@@ -120,7 +136,10 @@ func (rb *raftBackend) startRaft() {
 		rb.raftNode = raft.StartNode(c, rpeers)
 	}
 
-	go rb.serveProposalChannels()
+	if rb.isInteractive {
+		go rb.serveProposalChannels()
+	}
+
 	go rb.runRaftStateMachine()
 }
 
@@ -174,6 +193,10 @@ func (rb *raftBackend) runRaftStateMachine() {
 }
 
 func (rb *raftBackend) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry) {
+	if !rb.isInteractive {
+		return
+	}
+
 	nents = make([]raftpb.Entry, 0)
 	return
 }
