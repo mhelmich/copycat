@@ -76,7 +76,7 @@ func (c *copyCatImpl) SubscribeToDataStructure(id uint64, provider SnapshotProvi
 func (c *copyCatImpl) startRaftGroup() error {
 	// TODO: write glue code that lets you connect to a raft backend
 	// or put more generically: figure out raft backend connectivity
-	// localRaft, err := c.transport.StartRaft(context.TODO(), &pb.StartRaftRequest{})
+	// localRaft, err := c.createLocalRaft()
 	// if err != nil {
 	// 	return err
 	// }
@@ -173,6 +173,10 @@ func (c *copyCatImpl) startRaftRemotely(peerCh chan *pb.Peer, tags map[string]st
 		Id:          resp.RaftId,
 		RaftAddress: resp.RaftAddress,
 	}
+}
+
+func (c *copyCatImpl) createLocalRaft() (*raftBackend, error) {
+	return newInteractiveRaftBackend(c.config)
 }
 
 func (c *copyCatImpl) Shutdown() {
