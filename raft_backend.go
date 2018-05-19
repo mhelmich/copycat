@@ -151,6 +151,26 @@ func (rb *raftBackend) step(ctx context.Context, msg raftpb.Message) error {
 }
 
 func (rb *raftBackend) serveProposalChannels() {
+	var confChangeCount uint64 = 0
+
+	for rb.proposeChan != nil && rb.proposeConfChangeChan != nil {
+		select {
+		case prop, ok := <-rb.proposeChan:
+			if !ok {
+				return
+			}
+			// blocks until accepted by raft state machine
+			rb.raftNode.Propose(context.TODO(), prop)
+
+		case cc, ok := <-rb.proposeConfChangeChan:
+			if !ok {
+				return
+			}
+			confChangeCount++
+			cc.ID = confChangeCount
+			rb.raftNode.ProposeConfChange(context.TODO(), cc)
+		}
+	}
 }
 
 func (rb *raftBackend) runRaftStateMachine() {
