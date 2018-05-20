@@ -108,6 +108,7 @@ service CopyCatService {
 }
 
 message StartRaftRequest {
+  uint64 DataStructureId = 1;
 }
 
 message StartRaftResponse {
