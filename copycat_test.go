@@ -38,6 +38,7 @@ func TestCopyCatBasic(t *testing.T) {
 }
 
 func TestCopyCatNewDataStructure(t *testing.T) {
+	newDataStructureId := randomRaftId()
 	config1 := DefaultConfig()
 	config1.CopyCatDataDir = "./test-TestCopyCatNewDataStructure-" + uint64ToString(randomRaftId())
 	config1.GossipPort = config1.GossipPort + 22222
@@ -58,7 +59,7 @@ func TestCopyCatNewDataStructure(t *testing.T) {
 	cc2, err := newCopyCat(config2)
 	assert.Nil(t, err)
 
-	peers, err := cc1.choosePeersForNewDataStructure(cc1.membership.getAllMetadata(), 1)
+	peers, err := cc1.choosePeersForNewDataStructure(newDataStructureId, cc1.membership.getAllMetadata(), 1)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(peers))
 	assert.Equal(t, config2.hostname+":"+strconv.Itoa(config2.CopyCatPort), peers[0].RaftAddress)

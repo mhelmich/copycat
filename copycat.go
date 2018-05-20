@@ -73,15 +73,15 @@ func (c *copyCatImpl) SubscribeToDataStructure(id uint64, provider SnapshotProvi
 	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
 }
 
-func (c *copyCatImpl) startRaftGroup() error {
+func (c *copyCatImpl) startRaftGroup(dataStructureId uint64) error {
 	// TODO: write glue code that lets you connect to a raft backend
 	// or put more generically: figure out raft backend connectivity
-	// localRaft, err := c.createLocalRaft()
+	// remoteRafts, err := c.choosePeersForNewDataStructure(dataStructureId, c.membership.getAllMetadata(), 2)
 	// if err != nil {
 	// 	return err
 	// }
 	//
-	// remoteRafts, err := c.choosePeersForNewDataStructure(c.membership.getAllMetadata(), 2)
+	// localRaft, err := c.createLocalRaft(dataStructureId)
 	// if err != nil {
 	// 	return err
 	// }
@@ -89,7 +89,7 @@ func (c *copyCatImpl) startRaftGroup() error {
 	return nil
 }
 
-func (c *copyCatImpl) choosePeersForNewDataStructure(peersMetadata map[uint64]map[string]string, numPeers int) ([]pb.Peer, error) {
+func (c *copyCatImpl) choosePeersForNewDataStructure(dataStructureId uint64, peersMetadata map[uint64]map[string]string, numPeers int) ([]pb.Peer, error) {
 	newPeers := make([]pb.Peer, numPeers)
 	idxOfPeerToContact := 0
 	ch := make(chan *pb.Peer)
@@ -99,7 +99,7 @@ func (c *copyCatImpl) choosePeersForNewDataStructure(peersMetadata map[uint64]ma
 			break
 		}
 
-		go c.startRaftRemotely(ch, tags)
+		go c.startRaftRemotely(ch, dataStructureId, tags)
 		idxOfPeerToContact++
 	}
 
@@ -120,7 +120,7 @@ func (c *copyCatImpl) choosePeersForNewDataStructure(peersMetadata map[uint64]ma
 				count := 0
 				for _, tags := range peersMetadata {
 					if count == idxOfPeerToContact {
-						go c.startRaftRemotely(ch, tags)
+						go c.startRaftRemotely(ch, dataStructureId, tags)
 						break
 					}
 					count++
@@ -142,7 +142,7 @@ func (c *copyCatImpl) choosePeersForNewDataStructure(peersMetadata map[uint64]ma
 	}
 }
 
-func (c *copyCatImpl) startRaftRemotely(peerCh chan *pb.Peer, tags map[string]string) {
+func (c *copyCatImpl) startRaftRemotely(peerCh chan *pb.Peer, dataStructureId uint64, tags map[string]string) {
 	addr := c.membership.getAddr(tags)
 	if c.myAddress == addr {
 		// signal to the listener that we need to retry another peer
@@ -160,7 +160,7 @@ func (c *copyCatImpl) startRaftRemotely(peerCh chan *pb.Peer, tags map[string]st
 
 	defer conn.Close()
 	client := pb.NewCopyCatServiceClient(conn)
-	resp, err := client.StartRaft(context.TODO(), &pb.StartRaftRequest{})
+	resp, err := client.StartRaft(context.TODO(), &pb.StartRaftRequest{DataStructureId: dataStructureId})
 	if err != nil {
 		c.logger.Errorf("Can't start a raft at %s: %s", addr, err.Error())
 		// signal to the listener that we need to retry another peer
@@ -175,8 +175,14 @@ func (c *copyCatImpl) startRaftRemotely(peerCh chan *pb.Peer, tags map[string]st
 	}
 }
 
-func (c *copyCatImpl) createLocalRaft() (*raftBackend, error) {
-	return newInteractiveRaftBackend(c.config)
+func (c *copyCatImpl) createLocalRaft(dataStructureId uint64) (*raftBackend, error) {
+	backend, err := newInteractiveRaftBackend(c.config)
+	if err != nil {
+		return nil, err
+	}
+
+	c.membership.addDsToRaftIdMapping(dataStructureId, backend.raftId)
+	return backend, nil
 }
 
 func (c *copyCatImpl) Shutdown() {
