@@ -17,11 +17,17 @@
 package copycat
 
 import (
+	"context"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 
+	"github.com/mhelmich/copycat/pb"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"google.golang.org/grpc"
 )
 
 func TestCopyCatBasic(t *testing.T) {
@@ -71,4 +77,102 @@ func TestCopyCatNewDataStructure(t *testing.T) {
 	cc2.Shutdown()
 	err = os.RemoveAll(config2.CopyCatDataDir)
 	assert.Nil(t, err)
+}
+
+func TestStartRaftGroup(t *testing.T) {
+	host, _ := os.Hostname()
+	localRaftIdToAssetOn := randomRaftId()
+	remoteRaftIdToAssetOn := randomRaftId()
+	addressToContact := "address_to_contact"
+	startResp := &pb.StartRaftResponse{
+		RaftId:      remoteRaftIdToAssetOn,
+		RaftAddress: addressToContact,
+	}
+	mockClient := new(mockClient)
+	mockClient.On("StartRaft", mock.Anything, mock.Anything, mock.Anything).Return(startResp, nil)
+
+	mockMembership := new(mockCopyCatMembership)
+	// it doesn't even matter what is in those maps
+	// because I'm always returning the same client :)
+	metadataMap := make(map[uint64]map[string]string)
+	metadataMap[randomRaftId()] = make(map[string]string)
+	metadataMap[randomRaftId()] = make(map[string]string)
+	mockMembership.On("getAllMetadata").Return(metadataMap)
+	mockMembership.On("getAddr", mock.Anything).Return(addressToContact)
+	mockMembership.On("addDataStructureToRaftIdMapping", mock.Anything, mock.Anything).Return(nil)
+
+	mockCopyCatClientFunc := func(*sync.Map, string) (pb.CopyCatServiceClient, error) {
+		return mockClient, nil
+	}
+
+	peersCh := make(chan *[]pb.Peer, 1)
+	mockInteractiveRaftBackendFunc := func(config *Config, peers []pb.Peer) (*raftBackend, error) {
+		peersCh <- &peers
+		return &raftBackend{raftId: localRaftIdToAssetOn}, nil
+	}
+
+	cc := &copyCatImpl{
+		myAddress:                     host + ":" + strconv.Itoa(5599),
+		addressToConnection:           &sync.Map{},
+		membership:                    mockMembership,
+		newCopyCatClientFunc:          mockCopyCatClientFunc,
+		newInteractiveRaftBackendFunc: mockInteractiveRaftBackendFunc,
+		logger: log.WithFields(log.Fields{
+			"test": "TestStartRaftGroup",
+		}),
+	}
+
+	dsId := randomRaftId()
+	rb, err := cc.startRaftGroup(dsId, 1)
+
+	assert.Nil(t, err)
+	assert.NotNil(t, rb)
+	peersToAssertOn := *<-peersCh
+	assert.Equal(t, 1, len(peersToAssertOn))
+	assert.Equal(t, addressToContact, peersToAssertOn[0].RaftAddress)
+	assert.Equal(t, remoteRaftIdToAssetOn, peersToAssertOn[0].Id)
+	mockClient.AssertNumberOfCalls(t, "StartRaft", 1)
+	mockClient.AssertNumberOfCalls(t, "StopRaft", 0)
+	mockMembership.AssertNumberOfCalls(t, "getAllMetadata", 1)
+	mockMembership.AssertNumberOfCalls(t, "getAddr", 1)
+	mockMembership.AssertNumberOfCalls(t, "addDataStructureToRaftIdMapping", 1)
+	assert.Equal(t, localRaftIdToAssetOn, rb.raftId)
+}
+
+type mockClient struct {
+	mock.Mock
+}
+
+func (mc *mockClient) StartRaft(ctx context.Context, in *pb.StartRaftRequest, opts ...grpc.CallOption) (*pb.StartRaftResponse, error) {
+	args := mc.Called(ctx, in, opts)
+	return args.Get(0).(*pb.StartRaftResponse), args.Error(1)
+}
+
+func (mc *mockClient) StopRaft(ctx context.Context, in *pb.StopRaftRequest, opts ...grpc.CallOption) (*pb.StopRaftResponse, error) {
+	args := mc.Called(ctx, in, opts)
+	return args.Get(0).(*pb.StopRaftResponse), args.Error(1)
+}
+
+type mockCopyCatMembership struct {
+	mock.Mock
+}
+
+func (mccm *mockCopyCatMembership) addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error {
+	args := mccm.Called(dataStructureId, raftId)
+	return args.Error(0)
+}
+
+func (mccm *mockCopyCatMembership) getAddr(tags map[string]string) string {
+	args := mccm.Called(tags)
+	return args.String(0)
+}
+
+func (mccm *mockCopyCatMembership) getAllMetadata() map[uint64]map[string]string {
+	args := mccm.Called()
+	return args.Get(0).(map[uint64]map[string]string)
+}
+
+func (mccm *mockCopyCatMembership) stop() error {
+	args := mccm.Called()
+	return args.Error(0)
 }

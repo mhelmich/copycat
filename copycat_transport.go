@@ -90,7 +90,7 @@ func (t *copyCatTransport) StartRaft(ctx context.Context, in *pb.StartRaftReques
 	}
 
 	t.raftBackends[newRaftId] = backend
-	t.membership.addDsToRaftIdMapping(in.DataStructureId, newRaftId)
+	t.membership.addDataStructureToRaftIdMapping(in.DataStructureId, newRaftId)
 	return &pb.StartRaftResponse{
 		RaftId:      newRaftId,
 		RaftAddress: t.config.hostname + ":" + strconv.Itoa(t.config.CopyCatPort),

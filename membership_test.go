@@ -36,7 +36,7 @@ func TestMembershipBasic(t *testing.T) {
 	m, err := newMembership(config)
 	assert.Nil(t, err)
 
-	err = m.addDsToRaftIdMapping(123, 456)
+	err = m.addDataStructureToRaftIdMapping(123, 456)
 	assert.Nil(t, err)
 
 	err = m.stop()

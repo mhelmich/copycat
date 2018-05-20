@@ -117,9 +117,18 @@ type transportRaftBackend interface {
 // Internal interface that is only used in CopyCat transport.
 // It was introduced for mocking purposes.
 type transportMembership interface {
-	addDsToRaftIdMapping(dataStructureId uint64, raftId uint64) error
+	addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error
 	getAddressForRaftId(raftId uint64) string
 	getAddressesForDataStructureId(dataStructureId uint64) []string
+}
+
+// Internal interface that is only used in CopyCat.
+// It was introduced for mocking purposes.
+type copyCatMembership interface {
+	addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error
+	getAddr(tags map[string]string) string
+	getAllMetadata() map[uint64]map[string]string
+	stop() error
 }
 
 type locationChooser func(map[string]string) []string

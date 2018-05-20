@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/mhelmich/copycat/pb"
@@ -29,11 +30,14 @@ import (
 
 type copyCatImpl struct {
 	transport  *copyCatTransport
-	membership *membership
+	membership copyCatMembership
 	// this nodes CopyCay address in order to localize requests
-	myAddress string
-	config    *Config
-	logger    *log.Entry
+	myAddress                     string
+	addressToConnection           *sync.Map
+	newCopyCatClientFunc          func(*sync.Map, string) (pb.CopyCatServiceClient, error)
+	newInteractiveRaftBackendFunc func(config *Config, peers []pb.Peer) (*raftBackend, error)
+	config                        *Config
+	logger                        *log.Entry
 }
 
 func newCopyCat(config *Config) (*copyCatImpl, error) {
@@ -51,12 +55,45 @@ func newCopyCat(config *Config) (*copyCatImpl, error) {
 
 	config.raftTransport = t
 	return &copyCatImpl{
-		transport:  t,
-		membership: m,
-		myAddress:  config.hostname + ":" + strconv.Itoa(config.CopyCatPort),
-		config:     config,
-		logger:     config.logger,
+		transport:                     t,
+		membership:                    m,
+		myAddress:                     config.hostname + ":" + strconv.Itoa(config.CopyCatPort),
+		addressToConnection:           &sync.Map{},
+		newCopyCatClientFunc:          _newCopyCatServiceClient,
+		newInteractiveRaftBackendFunc: _newInteractiveRaftBackend,
+		config: config,
+		logger: config.logger,
 	}, nil
+}
+
+func _newCopyCatServiceClient(m *sync.Map, address string) (pb.CopyCatServiceClient, error) {
+	var conn *grpc.ClientConn
+	var err error
+	var val interface{}
+	var ok bool
+	var loaded bool
+
+	val, ok = m.Load(address)
+	if !ok {
+		conn, err = grpc.Dial(address, grpc.WithInsecure())
+		if err != nil {
+			return nil, err
+		}
+
+		val, loaded = m.LoadOrStore(address, conn)
+		if loaded {
+			// somebody else stored the connection already
+			// all of this was for nothing
+			defer conn.Close()
+		}
+	}
+
+	conn = val.(*grpc.ClientConn)
+	return pb.NewCopyCatServiceClient(conn), nil
+}
+
+func _newInteractiveRaftBackend(config *Config, peers []pb.Peer) (*raftBackend, error) {
+	return newInteractiveRaftBackend(config, peers)
 }
 
 // takes one operation, finds the leader remotely, and sends the operation to the leader
@@ -74,23 +111,27 @@ func (c *copyCatImpl) SubscribeToDataStructure(id uint64, provider SnapshotProvi
 	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
 }
 
-func (c *copyCatImpl) startRaftGroup(dataStructureId uint64) error {
+func (c *copyCatImpl) startRaftGroup(dataStructureId uint64, numReplicas int) (*raftBackend, error) {
 	// TODO: write glue code that lets you connect to a raft backend
 	// or put more generically: figure out raft backend connectivity
-	// remoteRafts, err := c.choosePeersForNewDataStructure(dataStructureId, c.membership.getAllMetadata(), 2)
-	// if err != nil {
-	// 	return err
-	// }
-	//
-	// localRaft, err := c.createLocalRaft(dataStructureId)
-	// if err != nil {
-	// 	return err
-	// }
+	remoteRafts, err := c.choosePeersForNewDataStructure(dataStructureId, c.membership.getAllMetadata(), numReplicas)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil
+	localRaft, err := c.createLocalRaft(dataStructureId, remoteRafts)
+	if err != nil {
+		return nil, err
+	}
+
+	return localRaft, nil
 }
 
 func (c *copyCatImpl) choosePeersForNewDataStructure(dataStructureId uint64, peersMetadata map[uint64]map[string]string, numPeers int) ([]pb.Peer, error) {
+	if len(peersMetadata) <= 0 {
+		return nil, fmt.Errorf("No peers to contact!")
+	}
+
 	newPeers := make([]pb.Peer, numPeers)
 	idxOfPeerToContact := 0
 	ch := make(chan *pb.Peer)
@@ -100,7 +141,8 @@ func (c *copyCatImpl) choosePeersForNewDataStructure(dataStructureId uint64, pee
 			break
 		}
 
-		go c.startRaftRemotely(ch, dataStructureId, tags)
+		localTags := tags
+		go c.startRaftRemotely(ch, dataStructureId, localTags)
 		idxOfPeerToContact++
 	}
 
@@ -138,6 +180,10 @@ func (c *copyCatImpl) choosePeersForNewDataStructure(dataStructureId uint64, pee
 
 			}
 		case <-time.After(time.Until(timeout)):
+			// close all started rafts
+			for _, p := range newPeers {
+				go c.stopRaftRemotely(p)
+			}
 			return nil, fmt.Errorf("Couldn't find enough remote peers for raft creation and timed out")
 		}
 	}
@@ -151,16 +197,13 @@ func (c *copyCatImpl) startRaftRemotely(peerCh chan *pb.Peer, dataStructureId ui
 		return
 	}
 
-	conn, err := grpc.Dial(addr, grpc.WithInsecure())
+	client, err := c.newCopyCatClientFunc(c.addressToConnection, addr)
 	if err != nil {
 		c.logger.Errorf("Can't connect to %s: %s", addr, err.Error())
-		// signal to the listener that we need to retry another peer
 		peerCh <- nil
 		return
 	}
 
-	defer conn.Close()
-	client := pb.NewCopyCatServiceClient(conn)
 	resp, err := client.StartRaft(context.TODO(), &pb.StartRaftRequest{DataStructureId: dataStructureId})
 	if err != nil {
 		c.logger.Errorf("Can't start a raft at %s: %s", addr, err.Error())
@@ -176,13 +219,27 @@ func (c *copyCatImpl) startRaftRemotely(peerCh chan *pb.Peer, dataStructureId ui
 	}
 }
 
-func (c *copyCatImpl) createLocalRaft(dataStructureId uint64) (*raftBackend, error) {
-	backend, err := newInteractiveRaftBackend(c.config, nil)
+func (c *copyCatImpl) stopRaftRemotely(peer pb.Peer) error {
+	if peer.RaftAddress == "" {
+		return nil
+	}
+
+	client, err := c.newCopyCatClientFunc(c.addressToConnection, peer.RaftAddress)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.StopRaft(context.TODO(), &pb.StopRaftRequest{RaftId: peer.Id})
+	return err
+}
+
+func (c *copyCatImpl) createLocalRaft(dataStructureId uint64, peers []pb.Peer) (*raftBackend, error) {
+	backend, err := c.newInteractiveRaftBackendFunc(c.config, peers)
 	if err != nil {
 		return nil, err
 	}
 
-	c.membership.addDsToRaftIdMapping(dataStructureId, backend.raftId)
+	c.membership.addDataStructureToRaftIdMapping(dataStructureId, backend.raftId)
 	return backend, nil
 }
 
@@ -191,5 +248,12 @@ func (c *copyCatImpl) Shutdown() {
 	if err != nil {
 		c.logger.Errorf("Error stopping membership: %s", err.Error())
 	}
+
+	c.addressToConnection.Range(func(key interface{}, value interface{}) bool {
+		conn := value.(*grpc.ClientConn)
+		defer conn.Close()
+		return true
+	})
+
 	c.transport.stop()
 }

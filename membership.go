@@ -259,7 +259,7 @@ func (m *membership) handleDataStructureIdQuery(query *serf.Query) ([]byte, erro
 	return resp.Marshal()
 }
 
-func (m *membership) addDsToRaftIdMapping(dsId uint64, raftId uint64) error {
+func (m *membership) addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error {
 	tags := m.serf.LocalMember().Tags
 	hostedItems := tags[serfMDKeyHostedItems]
 	hi := &pb.HostedItems{}
@@ -274,7 +274,7 @@ func (m *membership) addDsToRaftIdMapping(dsId uint64, raftId uint64) error {
 		hi.DataStructureToRaftMapping = make(map[uint64]uint64)
 	}
 
-	hi.DataStructureToRaftMapping[dsId] = raftId
+	hi.DataStructureToRaftMapping[dataStructureId] = raftId
 
 	setMe := make(map[string]string)
 	setMe[serfMDKeyHostedItems] = proto.MarshalTextString(hi)
@@ -320,10 +320,10 @@ func (m *membership) findDataStructureWithId(id uint64) (string, error) {
 	}
 }
 
-func (m *membership) getAddressesForDataStructureId(dsId uint64) []string {
-	raftIdsMap, ok := m.dataStructureIdToRaftIds[dsId]
+func (m *membership) getAddressesForDataStructureId(dataStructureId uint64) []string {
+	raftIdsMap, ok := m.dataStructureIdToRaftIds[dataStructureId]
 	if !ok {
-		m.logger.Infof("I don't know data structure with id [%d]", dsId)
+		m.logger.Infof("I don't know data structure with id [%d]", dataStructureId)
 		return make([]string, 0)
 	}
 

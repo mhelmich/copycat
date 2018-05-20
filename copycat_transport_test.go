@@ -116,7 +116,7 @@ func TestTransportStartStopRaft(t *testing.T) {
 	mockBackend.On("stop").Return()
 
 	mockMembership := new(mockTransportMembership)
-	mockMembership.On("addDsToRaftIdMapping", mock.Anything, mock.Anything).Return(nil)
+	mockMembership.On("addDataStructureToRaftIdMapping", mock.Anything, mock.Anything).Return(nil)
 
 	transport := &copyCatTransport{
 		config:       config,
@@ -145,7 +145,7 @@ func TestTransportStartStopRaft(t *testing.T) {
 
 	mockBackend.AssertNumberOfCalls(t, "step", 0)
 	mockBackend.AssertNumberOfCalls(t, "stop", 1)
-	mockMembership.AssertNumberOfCalls(t, "addDsToRaftIdMapping", 1)
+	mockMembership.AssertNumberOfCalls(t, "addDataStructureToRaftIdMapping", 1)
 	err = os.RemoveAll(config.CopyCatDataDir)
 	assert.Nil(t, err)
 }
@@ -175,7 +175,7 @@ type mockTransportMembership struct {
 	mock.Mock
 }
 
-func (mtm *mockTransportMembership) addDsToRaftIdMapping(dataStructureId uint64, raftId uint64) error {
+func (mtm *mockTransportMembership) addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error {
 	args := mtm.Called(dataStructureId, raftId)
 	return args.Error(0)
 }
