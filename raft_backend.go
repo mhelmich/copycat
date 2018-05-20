@@ -241,9 +241,12 @@ func (rb *raftBackend) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry
 
 	firstIdx := ents[0].Index
 	if firstIdx > rb.appliedIndex+1 {
-		rb.logger.Panicf("first index of committed entry[%d] should <= progress.appliedIndex[%d] !", firstIdx, rb.appliedIndex)
+		// if I'm getting invalid data, I'm shutting down
+		rb.logger.Errorf("first index of committed entry[%d] should <= progress.appliedIndex[%d] !", firstIdx, rb.appliedIndex)
+		rb.stop()
 	}
 
+	// if I get things that I didn't ask for, I sort them out
 	if rb.appliedIndex-firstIdx+1 < uint64(len(ents)) {
 		nents = ents[rb.appliedIndex-firstIdx+1:]
 	}
