@@ -27,12 +27,12 @@ import (
 )
 
 type raftBackend struct {
-	raftId                 uint64       // cluster-wide unique raft ID
-	peers                  []pb.Peer    // raft peer URLs
-	raftNode               raft.Node    // the actual raft node
-	transport              raftTranport // the transport used to send raft messages to other backends
-	store                  store        // the raft data store
-	startFromExistingState bool         // indicates whether this raft backend starts off with existing state or not
+	raftId                 uint64        // cluster-wide unique raft ID
+	peers                  []pb.Peer     // raft peer URLs
+	raftNode               raft.Node     // the actual raft node
+	transport              raftTransport // the transport used to send raft messages to other backends
+	store                  store         // the raft data store
+	startFromExistingState bool          // indicates whether this raft backend starts off with existing state or not
 	// proposed changes to the data of this raft group
 	// write-only for the consumer
 	// read-only for the raftBacken

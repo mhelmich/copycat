@@ -64,7 +64,7 @@ type Config struct {
 	Location string
 
 	// Popluated internally.
-	raftTransport raftTranport
+	raftTransport raftTransport
 	hostname      string
 	logger        *log.Entry
 }
@@ -103,7 +103,7 @@ type store interface {
 
 // Internal interface that is only used in CopyCat raft backend.
 // It was introduced for mocking purposes.
-type raftTranport interface {
+type raftTransport interface {
 	sendMessages(msgs []raftpb.Message)
 }
 
@@ -112,6 +112,14 @@ type raftTranport interface {
 type transportRaftBackend interface {
 	step(ctx context.Context, msg raftpb.Message) error
 	stop()
+}
+
+// Internal interface that is only used in CopyCat transport.
+// It was introduced for mocking purposes.
+type transportMembership interface {
+	addDsToRaftIdMapping(dataStructureId uint64, raftId uint64) error
+	getAddressForRaftId(raftId uint64) string
+	getAddressesForDataStructureId(dataStructureId uint64) []string
 }
 
 type locationChooser func(map[string]string) []string

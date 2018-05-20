@@ -29,7 +29,17 @@ import (
 	"google.golang.org/grpc"
 )
 
-func newTransport(config *Config, membership *membership) (*copyCatTransport, error) {
+type copyCatTransport struct {
+	config             *Config
+	grpcServer         *grpc.Server
+	myAddress          string
+	raftBackends       map[uint64]transportRaftBackend
+	membership         transportMembership
+	newRaftBackendFunc func(uint64, *Config) (transportRaftBackend, error) // pulled out for testing
+	logger             *log.Entry
+}
+
+func newTransport(config *Config, membership transportMembership) (*copyCatTransport, error) {
 	logger := config.logger.WithFields(log.Fields{
 		"component": "copycat_transport",
 	})
@@ -58,16 +68,6 @@ func newTransport(config *Config, membership *membership) (*copyCatTransport, er
 	return transport, nil
 }
 
-type copyCatTransport struct {
-	config             *Config
-	grpcServer         *grpc.Server
-	myAddress          string
-	raftBackends       map[uint64]transportRaftBackend
-	membership         *membership
-	newRaftBackendFunc func(uint64, *Config) (transportRaftBackend, error) // pulled out for testing
-	logger             *log.Entry
-}
-
 // Yet another level of indirection so that this method can return an interface
 // used for unit testing
 func _transportNewRaftBackend(newRaftId uint64, config *Config) (transportRaftBackend, error) {
@@ -90,6 +90,7 @@ func (t *copyCatTransport) StartRaft(ctx context.Context, in *pb.StartRaftReques
 	}
 
 	t.raftBackends[newRaftId] = backend
+	t.membership.addDsToRaftIdMapping(in.DataStructureId, newRaftId)
 	return &pb.StartRaftResponse{
 		RaftId:      newRaftId,
 		RaftAddress: t.config.hostname + ":" + strconv.Itoa(t.config.CopyCatPort),
@@ -169,8 +170,8 @@ func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) {
 ////////////////////////////////
 // SECTION FOR UTILS
 
-func (t *copyCatTransport) doIHostDataStructure(dsId uint64) (bool, string) {
-	addresses := t.membership.getAddressesForDataStructureId(dsId)
+func (t *copyCatTransport) doIHostDataStructure(dataStructureId uint64) (bool, string) {
+	addresses := t.membership.getAddressesForDataStructureId(dataStructureId)
 	if len(addresses) == 0 {
 		return false, ""
 	}
