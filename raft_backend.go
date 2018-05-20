@@ -26,6 +26,44 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type raftBackend struct {
+	raftId                 uint64       // cluster-wide unique raft ID
+	peers                  []pb.Peer    // raft peer URLs
+	raftNode               raft.Node    // the actual raft node
+	transport              raftTranport // the transport used to send raft messages to other backends
+	store                  store        // the raft data store
+	startFromExistingState bool         // indicates whether this raft backend starts off with existing state or not
+	// proposed changes to the data of this raft group
+	// write-only for the consumer
+	// read-only for the raftBacken
+	proposeChan chan []byte
+	// proposed changes to the raft group topology
+	// write-only for the consumer
+	// read-only for the raftBacken
+	proposeConfChangeChan chan raftpb.ConfChange
+	// changes committed to this raft group
+	// write-only for the raftBackend
+	// read-only for the consumer
+	commitChan chan []byte
+	// errors while processing proposed changes
+	// write-only for the raftBackend
+	// read-only for the consumer
+	errorChan chan error
+	// this object describes the topology of the raft group this backend is part of
+	confState raftpb.ConfState
+	// An interactive raft backend returns proposal and commit channels.
+	// It listens to them or writes to them respectively.
+	// A detached raft backend only answers to messages it receives via the network transport.
+	// Backends cannot be converted from one to the other. Once created, they are created.
+	isInteractive bool
+	// The last index that has been applied. It helps us figuring out which entries to publish.
+	appliedIndex uint64
+	// The index of the latest snapshot.
+	snapshotIndex uint64
+	logger        *log.Entry    // the logger to use by this struct
+	stopChan      chan struct{} // signals this raft backend should shut down (only used internally)
+}
+
 func newInteractiveRaftBackend(config *Config) (*raftBackend, error) {
 	return newRaftBackend(randomRaftId(), config, true)
 }
@@ -76,44 +114,6 @@ func newRaftBackend(newRaftId uint64, config *Config, isInteractive bool) (*raft
 
 	go rb.startRaft()
 	return rb, nil
-}
-
-type raftBackend struct {
-	raftId                 uint64       // cluster-wide unique raft ID
-	peers                  []pb.Peer    // raft peer URLs
-	raftNode               raft.Node    // the actual raft node
-	transport              raftTranport // the transport used to send raft messages to other backends
-	store                  store        // the raft data store
-	startFromExistingState bool         // indicates whether this raft backend starts off with existing state or not
-	// proposed changes to the data of this raft group
-	// write-only for the consumer
-	// read-only for the raftBacken
-	proposeChan chan []byte
-	// proposed changes to the raft group topology
-	// write-only for the consumer
-	// read-only for the raftBacken
-	proposeConfChangeChan chan raftpb.ConfChange
-	// changes committed to this raft group
-	// write-only for the raftBackend
-	// read-only for the consumer
-	commitChan chan []byte
-	// errors while processing proposed changes
-	// write-only for the raftBackend
-	// read-only for the consumer
-	errorChan chan error
-	// this object describes the topology of the raft group this backend is part of
-	confState raftpb.ConfState
-	// An interactive raft backend returns proposal and commit channels.
-	// It listens to them or writes to them respectively.
-	// A detached raft backend only answers to messages it receives via the network transport.
-	// Backends cannot be converted from one to the other. Once created, they are created.
-	isInteractive bool
-	// The last index that has been applied. It helps us figuring out which entries to publish.
-	appliedIndex uint64
-	// The index of the latest snapshot.
-	snapshotIndex uint64
-	logger        *log.Entry    // the logger to use by this struct
-	stopChan      chan struct{} // signals this raft backend should shut down (only used internally)
 }
 
 func (rb *raftBackend) startRaft() {
