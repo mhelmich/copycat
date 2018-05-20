@@ -91,6 +91,8 @@ func newRaftBackend(newRaftId uint64, config *Config, isInteractive bool) (*raft
 	var commitChan chan []byte
 	var errorChan chan error
 
+	// only create these channels if the backend is interactive
+	// otherwise the backend will only listen to messages via the network
 	if isInteractive {
 		proposeChan = make(chan []byte)
 		proposeConfChangeChan = make(chan raftpb.ConfChange)
@@ -128,6 +130,8 @@ func (rb *raftBackend) startRaft() {
 	}
 
 	if rb.startFromExistingState {
+		hardState, _, _ := rb.store.InitialState()
+		c.Applied = hardState.Commit
 		rb.raftNode = raft.RestartNode(c)
 	} else {
 		rpeers := make([]raft.Peer, len(rb.peers))
