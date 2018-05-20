@@ -108,6 +108,10 @@ type raftBackend struct {
 	// A detached raft backend only answers to messages it receives via the network transport.
 	// Backends cannot be converted from one to the other. Once created, they are created.
 	isInteractive bool
+	// The last index that has been applied. It helps us figuring out which entries to publish.
+	appliedIndex uint64
+	// The index of the latest snapshot.
+	snapshotIndex uint64
 	logger        *log.Entry    // the logger to use by this struct
 	stopChan      chan struct{} // signals this raft backend should shut down (only used internally)
 }
@@ -174,6 +178,16 @@ func (rb *raftBackend) serveProposalChannels() {
 }
 
 func (rb *raftBackend) runRaftStateMachine() {
+	snap, err := rb.store.Snapshot()
+	if err != nil {
+		rb.logger.Fatalf("Can't get base snapshot: %s", err)
+		rb.stop()
+		return
+	}
+
+	rb.confState = snap.Metadata.ConfState
+	rb.snapshotIndex = snap.Metadata.Index
+	rb.appliedIndex = snap.Metadata.Index
 	defer rb.store.close()
 
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -217,11 +231,56 @@ func (rb *raftBackend) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry
 		return
 	}
 
-	nents = make([]raftpb.Entry, 0)
-	return
+	if len(ents) == 0 {
+		return
+	}
+
+	firstIdx := ents[0].Index
+	if firstIdx > rb.appliedIndex+1 {
+		rb.logger.Panicf("first index of committed entry[%d] should <= progress.appliedIndex[%d] !", firstIdx, rb.appliedIndex)
+	}
+
+	if rb.appliedIndex-firstIdx+1 < uint64(len(ents)) {
+		nents = ents[rb.appliedIndex-firstIdx+1:]
+	}
+
+	return nents
 }
 
 func (rb *raftBackend) publishEntries(ents []raftpb.Entry) bool {
+	for idx := range ents {
+		switch ents[idx].Type {
+		case raftpb.EntryNormal:
+			if len(ents[idx].Data) > 0 {
+				// ignore empty messages
+				select {
+				case rb.commitChan <- ents[idx].Data:
+				case <-rb.stopChan:
+					return false
+				}
+			}
+
+		case raftpb.EntryConfChange:
+			var cc raftpb.ConfChange
+			cc.Unmarshal(ents[idx].Data)
+			rb.logger.Debugf("Publishing config change: [%s]", cc.String())
+			rb.confState = *rb.raftNode.ApplyConfChange(cc)
+			rb.store.saveConfigState(rb.confState)
+			switch cc.Type {
+			// TODO: build a raft backend connection cache to the respective peers maybe?
+			case raftpb.ConfChangeRemoveNode:
+				if cc.NodeID == rb.raftId {
+					rb.logger.Error("I've been removed from the cluster! Shutting down.")
+					// this false will the code call stop eventually
+					return false
+				}
+			default:
+				rb.logger.Infof("Got the following EntryConfChange event but there's nothing to do: %s", cc.String())
+			}
+		}
+		// after commit, update appliedIndex
+		rb.appliedIndex = ents[idx].Index
+	}
 	return true
 }
 
