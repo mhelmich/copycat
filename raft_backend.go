@@ -64,15 +64,15 @@ type raftBackend struct {
 	stopChan      chan struct{} // signals this raft backend should shut down (only used internally)
 }
 
-func newInteractiveRaftBackend(config *Config) (*raftBackend, error) {
-	return newRaftBackend(randomRaftId(), config, true)
+func newInteractiveRaftBackend(config *Config, peers []pb.Peer) (*raftBackend, error) {
+	return newRaftBackend(randomRaftId(), config, peers, true)
 }
 
 func newRaftBackendWithId(newRaftId uint64, config *Config) (*raftBackend, error) {
-	return newRaftBackend(newRaftId, config, false)
+	return newRaftBackend(newRaftId, config, nil, false)
 }
 
-func newRaftBackend(newRaftId uint64, config *Config, isInteractive bool) (*raftBackend, error) {
+func newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, isInteractive bool) (*raftBackend, error) {
 	logger := config.logger.WithFields(log.Fields{
 		"component": "raftBackend",
 		"raftId":    uint64ToString(newRaftId),
@@ -102,6 +102,7 @@ func newRaftBackend(newRaftId uint64, config *Config, isInteractive bool) (*raft
 
 	rb := &raftBackend{
 		raftId:                newRaftId,
+		peers:                 peers,
 		proposeChan:           proposeChan,
 		proposeConfChangeChan: proposeConfChangeChan,
 		commitChan:            commitChan,

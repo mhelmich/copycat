@@ -30,9 +30,10 @@ import (
 type copyCatImpl struct {
 	transport  *copyCatTransport
 	membership *membership
-	myAddress  string
-	config     *Config
-	logger     *log.Entry
+	// this nodes CopyCay address in order to localize requests
+	myAddress string
+	config    *Config
+	logger    *log.Entry
 }
 
 func newCopyCat(config *Config) (*copyCatImpl, error) {
@@ -176,7 +177,7 @@ func (c *copyCatImpl) startRaftRemotely(peerCh chan *pb.Peer, dataStructureId ui
 }
 
 func (c *copyCatImpl) createLocalRaft(dataStructureId uint64) (*raftBackend, error) {
-	backend, err := newInteractiveRaftBackend(c.config)
+	backend, err := newInteractiveRaftBackend(c.config, nil)
 	if err != nil {
 		return nil, err
 	}
