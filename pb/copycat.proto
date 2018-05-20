@@ -80,72 +80,6 @@ message HostedItems {
 
 //////////////////////////////////////////
 ////////////////////////////////
-// SECTION FOR THE DATA STRUCTURE SERVICE
-// UNUSED SO FAR...
-
-service DataStructureService {
-  // A client keeps sending operations into this stream.
-  // CopyCat will consume this stream and try to achieve consensus.
-  rpc Propose(stream ProposeReq) returns (ProposeResp) {}
-  // All changes that CopyCat accepted and committed will be replayed via this stream.
-  // This stream will contain all committed operations that have been sent to the propose stream.
-  rpc Commit(CommitReq) returns (stream CommitResp) {}
-  // If CopyCay runs into an error when trying to commit a change, this stream will contain an error.
-  rpc Error(ErrorReq) returns (stream ErrorResp) {}
-  // Then the commit stream hints that a new snapshot is available, this endpoint will provide it to you.
-  rpc ConsumeSnapshot(ConsumeSnapshotReq) returns (ConsumeSnapshotResp) {}
-  // This endpoint will be used to provide a consistent snapshot of data to CopyCat.
-  // In regular intervals CopyCat will ask for a consistent snapshot of your data structure.
-  // Clients are required to send a request to this endpoint as soon as they start interacting
-  // with a data sturcture. After they get a response from this endpoint, they need to reply
-  // to the response with another message containing a snapshot of the data structure.
-  // CopyCat will block until it has received the snapshot.
-  rpc ProvideSnapshot(stream ProvideSnapshotReq) returns (stream ProvideSnapshotResp) {}
-}
-
-message ProposeReq {
-  uint64 DataStructureId = 1;
-  bytes Data = 2;
-}
-
-message ProposeResp {
-  string ForwardAddress = 1;
-}
-
-message CommitReq {
-  uint64 DataStructureId = 1;
-}
-
-message CommitResp {
-  bytes Data = 1;
-}
-
-message ErrorReq {
-  uint64 DataStructureId = 1;
-}
-
-message ErrorResp {
-  string Error = 1;
-}
-
-message ConsumeSnapshotReq {
-  uint64 DataStructureId = 1;
-}
-
-message ConsumeSnapshotResp {
-  bytes Data = 1;
-}
-
-message ProvideSnapshotReq {
-  uint64 DataStructureId = 1;
-  bytes Data = 2;
-}
-
-message ProvideSnapshotResp {
-}
-
-//////////////////////////////////////////
-////////////////////////////////
 // SECTION FOR THE RAFT TRANSPORT
 
 enum TransportError {
@@ -169,16 +103,8 @@ message SendResp {
 // SECTION FOR THE COPYCAT SERVICE
 
 service CopyCatService {
-  rpc NewDataStructure(NewDataStructureRequest) returns (NewDataStructureResponse) {}
   rpc StartRaft(StartRaftRequest) returns (StartRaftResponse) {}
   rpc StopRaft(StopRaftRequest) returns (StopRaftResponse) {}
-}
-
-message NewDataStructureRequest {
-}
-
-message NewDataStructureResponse {
-  uint64 DataStructureId = 1;
 }
 
 message StartRaftRequest {

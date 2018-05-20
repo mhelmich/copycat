@@ -78,10 +78,6 @@ func _transportNewRaftBackend(newRaftId uint64, config *Config) (transportRaftBa
 ////////////////////////////////
 // SECTION FOR THE COPYCAT SERVICE
 
-func (t *copyCatTransport) NewDataStructure(ctx context.Context, in *pb.NewDataStructureRequest) (*pb.NewDataStructureResponse, error) {
-	return nil, nil
-}
-
 func (t *copyCatTransport) StartRaft(ctx context.Context, in *pb.StartRaftRequest) (*pb.StartRaftResponse, error) {
 	newRaftId := randomRaftId()
 	// A raft backend is started in join mode but without specifying other peers.
@@ -167,54 +163,6 @@ func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) {
 
 		defer stream.CloseSend()
 	}
-}
-
-//////////////////////////////////////////
-////////////////////////////////
-// SECTION FOR THE DATA STRUCTURE SERVICE
-
-func (t *copyCatTransport) Propose(stream pb.DataStructureService_ProposeServer) error {
-	for { //ever...
-		proposeReq, err := stream.Recv()
-		if err == io.EOF {
-			return stream.SendAndClose(&pb.ProposeResp{})
-		} else if err != nil {
-			return err
-		}
-
-		IDo, actualHost := t.doIHostDataStructure(proposeReq.DataStructureId)
-		if IDo {
-			// do the actual work of taking the byte array and send it to the raft proposal channel
-		} else {
-			// send forward message back and be done
-			// the address string however might be empty indicating that we don't know about
-			// this particular data structure at all
-			// in this case it's best to query the cluster and ask my peers
-			if actualHost == "" {
-				actualHost, _ = t.membership.findDataStructureWithId(proposeReq.DataStructureId)
-			}
-
-			return stream.SendAndClose(&pb.ProposeResp{
-				ForwardAddress: actualHost,
-			})
-		}
-	}
-}
-
-func (t *copyCatTransport) Commit(in *pb.CommitReq, stream pb.DataStructureService_CommitServer) error {
-	return nil
-}
-
-func (t *copyCatTransport) Error(in *pb.ErrorReq, stream pb.DataStructureService_ErrorServer) error {
-	return nil
-}
-
-func (t *copyCatTransport) ConsumeSnapshot(ctx context.Context, in *pb.ConsumeSnapshotReq) (*pb.ConsumeSnapshotResp, error) {
-	return nil, nil
-}
-
-func (t *copyCatTransport) ProvideSnapshot(stream pb.DataStructureService_ProvideSnapshotServer) error {
-	return nil
 }
 
 //////////////////////////////////////////
