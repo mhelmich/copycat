@@ -27,6 +27,14 @@ import (
 	"google.golang.org/grpc"
 )
 
+type copyCatImpl struct {
+	transport  *copyCatTransport
+	membership *membership
+	myAddress  string
+	config     *Config
+	logger     *log.Entry
+}
+
 func newCopyCat(config *Config) (*copyCatImpl, error) {
 	m, err := newMembership(config)
 	if err != nil {
@@ -48,14 +56,6 @@ func newCopyCat(config *Config) (*copyCatImpl, error) {
 		config:     config,
 		logger:     config.logger,
 	}, nil
-}
-
-type copyCatImpl struct {
-	transport  *copyCatTransport
-	membership *membership
-	myAddress  string
-	config     *Config
-	logger     *log.Entry
 }
 
 // takes one operation, finds the leader remotely, and sends the operation to the leader
