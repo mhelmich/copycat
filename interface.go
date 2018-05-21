@@ -23,6 +23,7 @@ import (
 
 	"github.com/coreos/etcd/raft"
 	"github.com/coreos/etcd/raft/raftpb"
+	"github.com/mhelmich/copycat/pb"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -128,6 +129,7 @@ type copyCatMembership interface {
 	addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error
 	getAddr(tags map[string]string) string
 	getAllMetadata() map[uint64]map[string]string
+	peersForDataStructureId(dataStructureId uint64) []pb.Peer
 	stop() error
 }
 

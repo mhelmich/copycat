@@ -98,7 +98,21 @@ func _newInteractiveRaftBackend(config *Config, peers []pb.Peer) (*raftBackend, 
 
 // takes one operation, finds the leader remotely, and sends the operation to the leader
 func (c *copyCatImpl) ConnectToDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer) {
-	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
+	var interactiveBackend *raftBackend
+	var err error
+
+	peers := c.membership.peersForDataStructureId(id)
+	if len(peers) > 0 {
+		// TODO: find peers to connect to
+		interactiveBackend, err = c.createLocalRaft(id, nil)
+	} else {
+		interactiveBackend, err = c.startNewRaftGroup(id, 2)
+	}
+
+	if err != nil {
+		c.logger.Errorf("Can't connect to data structure: %s", err.Error())
+	}
+	return interactiveBackend.proposeChan, interactiveBackend.commitChan, interactiveBackend.errorChan, func() ([]byte, error) { return interactiveBackend.snapshot() }
 }
 
 // takes a data strucutre id, has this node join the raft group, finds the leader of the raft group, and tries to transfer leadership to this node
@@ -111,7 +125,7 @@ func (c *copyCatImpl) SubscribeToDataStructure(id uint64, provider SnapshotProvi
 	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
 }
 
-func (c *copyCatImpl) startRaftGroup(dataStructureId uint64, numReplicas int) (*raftBackend, error) {
+func (c *copyCatImpl) startNewRaftGroup(dataStructureId uint64, numReplicas int) (*raftBackend, error) {
 	// TODO: write glue code that lets you connect to a raft backend
 	// or put more generically: figure out raft backend connectivity
 	remoteRafts, err := c.choosePeersForNewDataStructure(dataStructureId, c.membership.getAllMetadata(), numReplicas)
@@ -249,7 +263,7 @@ func (c *copyCatImpl) Shutdown() {
 		c.logger.Errorf("Error stopping membership: %s", err.Error())
 	}
 
-	c.addressToConnection.Range(func(key interface{}, value interface{}) bool {
+	c.addressToConnection.Range(func(_, value interface{}) bool {
 		conn := value.(*grpc.ClientConn)
 		defer conn.Close()
 		return true

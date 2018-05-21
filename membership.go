@@ -348,6 +348,28 @@ func (m *membership) getAddr(tags map[string]string) string {
 	return tags[serfMDKeyHost] + ":" + tags[serfMDKeyCopyCatPort]
 }
 
+func (m *membership) peersForDataStructureId(dataStructureId uint64) []pb.Peer {
+	raftIdsMap, ok := m.dataStructureIdToRaftIds[dataStructureId]
+	if !ok {
+		m.logger.Infof("I don't know data structure with id [%d]", dataStructureId)
+		return make([]pb.Peer, 0)
+	}
+
+	peers := make([]pb.Peer, len(raftIdsMap))
+	i := 0
+	for raftId := range raftIdsMap {
+		addr, ok := m.raftIdToAddress[raftId]
+		if ok {
+			peers[i] = pb.Peer{
+				Id:          raftId,
+				RaftAddress: addr,
+			}
+			i++
+		}
+	}
+	return peers[:i]
+}
+
 // making a defensive copy of this map to prevent a data race
 // TODO: think about how to make this better
 // either pass out the sync.Map or a channel iterating through the map

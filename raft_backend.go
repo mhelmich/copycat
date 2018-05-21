@@ -292,6 +292,11 @@ func (rb *raftBackend) publishEntries(ents []raftpb.Entry) bool {
 	return true
 }
 
+func (rb *raftBackend) snapshot() ([]byte, error) {
+	snap, err := rb.store.Snapshot()
+	return snap.Data, err
+}
+
 func (rb *raftBackend) stop() {
 	rb.stopChan <- struct{}{}
 	close(rb.stopChan)

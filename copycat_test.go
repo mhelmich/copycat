@@ -32,7 +32,7 @@ import (
 
 func TestCopyCatBasic(t *testing.T) {
 	config1 := DefaultConfig()
-	config1.CopyCatDataDir = "./test-TestCopyCatBasic-" + uint64ToString(randomRaftId())
+	config1.CopyCatDataDir = "./test-TestCopyCatBasic-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	cc1, err := newCopyCat(config1)
@@ -46,7 +46,7 @@ func TestCopyCatBasic(t *testing.T) {
 func TestCopyCatNewDataStructure(t *testing.T) {
 	newDataStructureId := randomRaftId()
 	config1 := DefaultConfig()
-	config1.CopyCatDataDir = "./test-TestCopyCatNewDataStructure-" + uint64ToString(randomRaftId())
+	config1.CopyCatDataDir = "./test-TestCopyCatNewDataStructure-" + uint64ToString(randomRaftId()) + "/"
 	config1.GossipPort = config1.GossipPort + 22222
 	config1.CopyCatPort = config1.CopyCatPort + 22222
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
@@ -55,7 +55,7 @@ func TestCopyCatNewDataStructure(t *testing.T) {
 	assert.Nil(t, err)
 
 	config2 := DefaultConfig()
-	config2.CopyCatDataDir = "./test-TestCopyCatNewDataStructure-" + uint64ToString(randomRaftId())
+	config2.CopyCatDataDir = "./test-TestCopyCatNewDataStructure-" + uint64ToString(randomRaftId()) + "/"
 	config2.GossipPort = config1.GossipPort + 10000
 	config2.CopyCatPort = config1.CopyCatPort + 10000
 	config2.PeersToContact = make([]string, 1)
@@ -123,7 +123,7 @@ func TestStartRaftGroup(t *testing.T) {
 	}
 
 	dsId := randomRaftId()
-	rb, err := cc.startRaftGroup(dsId, 1)
+	rb, err := cc.startNewRaftGroup(dsId, 1)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, rb)
@@ -170,6 +170,11 @@ func (mccm *mockCopyCatMembership) getAddr(tags map[string]string) string {
 func (mccm *mockCopyCatMembership) getAllMetadata() map[uint64]map[string]string {
 	args := mccm.Called()
 	return args.Get(0).(map[uint64]map[string]string)
+}
+
+func (mccm *mockCopyCatMembership) peersForDataStructureId(dataStructureId uint64) []pb.Peer {
+	args := mccm.Called(dataStructureId)
+	return args.Get(0).([]pb.Peer)
 }
 
 func (mccm *mockCopyCatMembership) stop() error {

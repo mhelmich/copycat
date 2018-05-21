@@ -32,7 +32,7 @@ import (
 
 func TestTransportBasic(t *testing.T) {
 	config := DefaultConfig()
-	config.CopyCatDataDir = "./test-TestTransportBasic-" + uint64ToString(randomRaftId())
+	config.CopyCatDataDir = "./test-TestTransportBasic-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 
@@ -66,7 +66,7 @@ func TestTransportSendReceiveMessages(t *testing.T) {
 	config1 := DefaultConfig()
 	config1.CopyCatPort += 10000
 	config1.logger = m.logger
-	config1.CopyCatDataDir = "./test-TestTransportSendReceiveMessages-" + uint64ToString(randomRaftId())
+	config1.CopyCatDataDir = "./test-TestTransportSendReceiveMessages-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	sender, err := newTransport(config1, m)
@@ -75,7 +75,7 @@ func TestTransportSendReceiveMessages(t *testing.T) {
 	config2 := DefaultConfig()
 	config2.CopyCatPort = config1.CopyCatPort + 10000
 	config1.logger = m.logger
-	config2.CopyCatDataDir = "./test-TestTransportSendReceiveMessages-" + uint64ToString(randomRaftId())
+	config2.CopyCatDataDir = "./test-TestTransportSendReceiveMessages-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	receiver, err := newTransport(config2, m)
@@ -106,7 +106,7 @@ func TestTransportSendReceiveMessages(t *testing.T) {
 
 func TestTransportStartStopRaft(t *testing.T) {
 	config := DefaultConfig()
-	config.CopyCatDataDir = "./test-TestTransportStartStopRaft-" + uint64ToString(randomRaftId())
+	config.CopyCatDataDir = "./test-TestTransportStartStopRaft-" + uint64ToString(randomRaftId()) + "/"
 
 	mockTransport := new(mockRaftTransport)
 	mockTransport.On("sendMessages", mock.Anything).Return()

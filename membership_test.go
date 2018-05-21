@@ -31,7 +31,7 @@ import (
 
 func TestMembershipBasic(t *testing.T) {
 	config := DefaultConfig()
-	config.CopyCatDataDir = "./test-TestMembershipBasic-" + uint64ToString(randomRaftId())
+	config.CopyCatDataDir = "./test-TestMembershipBasic-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	m, err := newMembership(config)
@@ -48,14 +48,14 @@ func TestMembershipBasic(t *testing.T) {
 
 func TestMembershipBasicTwoNodes(t *testing.T) {
 	config1 := DefaultConfig()
-	config1.CopyCatDataDir = "./test-TestMembershipBasicTwoNodes-" + uint64ToString(randomRaftId())
+	config1.CopyCatDataDir = "./test-TestMembershipBasicTwoNodes-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	m1, err := newMembership(config1)
 	assert.Nil(t, err)
 
 	config2 := DefaultConfig()
-	config2.CopyCatDataDir = "./test-TestMembershipBasicTwoNodes-" + uint64ToString(randomRaftId())
+	config2.CopyCatDataDir = "./test-TestMembershipBasicTwoNodes-" + uint64ToString(randomRaftId()) + "/"
 	config2.GossipPort = config2.GossipPort + 10000
 	config2.PeersToContact = make([]string, 1)
 	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.GossipPort)
@@ -135,7 +135,7 @@ func TestMembershipNodeJoin(t *testing.T) {
 
 func TestMembershipHandleQuery(t *testing.T) {
 	config := DefaultConfig()
-	config.CopyCatDataDir = "./test-TestMembershipHandleQuery-" + uint64ToString(randomRaftId())
+	config.CopyCatDataDir = "./test-TestMembershipHandleQuery-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	m, err := newMembership(config)
@@ -164,7 +164,7 @@ func TestMembershipHandleQuery(t *testing.T) {
 func ___TestMembershipDataStructureQuery(t *testing.T) {
 	config1 := DefaultConfig()
 	config1.hostname = "localhost"
-	config1.CopyCatDataDir = "./test-TestMembershipDataStructureQuery-" + uint64ToString(randomRaftId())
+	config1.CopyCatDataDir = "./test-TestMembershipDataStructureQuery-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	m1, err := newMembership(config1)
@@ -172,7 +172,7 @@ func ___TestMembershipDataStructureQuery(t *testing.T) {
 
 	config2 := DefaultConfig()
 	config2.hostname = "localhost"
-	config2.CopyCatDataDir = "./test-TestMembershipDataStructureQuery-" + uint64ToString(randomRaftId())
+	config2.CopyCatDataDir = "./test-TestMembershipDataStructureQuery-" + uint64ToString(randomRaftId()) + "/"
 	config2.GossipPort = config1.GossipPort + 10000
 	config2.PeersToContact = make([]string, 1)
 	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.GossipPort)
@@ -201,6 +201,44 @@ func ___TestMembershipDataStructureQuery(t *testing.T) {
 	assert.Nil(t, err)
 	err = os.RemoveAll(config2.CopyCatDataDir)
 	assert.Nil(t, err)
+}
+
+func TestMembershipPeersForDataStructure(t *testing.T) {
+	m := &membership{
+		raftIdToAddress:          make(map[uint64]string),
+		dataStructureIdToRaftIds: make(map[uint64]map[uint64]bool),
+		logger: log.WithFields(log.Fields{
+			"test": "TestMembershipPeersForDataStructure",
+		}),
+	}
+
+	myDataStructureId := randomRaftId()
+	raftId1 := randomRaftId()
+	raftId2 := randomRaftId()
+	raftId3 := randomRaftId()
+
+	address1 := "address_1"
+	address2 := "address_2"
+	address3 := "address_3"
+
+	m.dataStructureIdToRaftIds[myDataStructureId] = make(map[uint64]bool)
+	m.dataStructureIdToRaftIds[myDataStructureId][raftId1] = false
+	m.dataStructureIdToRaftIds[myDataStructureId][raftId2] = false
+	m.dataStructureIdToRaftIds[myDataStructureId][raftId3] = false
+
+	m.raftIdToAddress[raftId1] = address1
+	m.raftIdToAddress[raftId2] = address2
+	m.raftIdToAddress[raftId3] = address3
+
+	peers := m.peersForDataStructureId(myDataStructureId)
+	assert.Equal(t, 3, len(peers))
+	for _, peer := range peers {
+		_, ok := m.raftIdToAddress[peer.Id]
+		assert.True(t, ok)
+	}
+
+	peers = m.peersForDataStructureId(myDataStructureId + 3)
+	assert.Equal(t, 0, len(peers))
 }
 
 func mockTags(host string, port int, hostedItems string) map[string]string {
