@@ -68,14 +68,14 @@ type raftBackend struct {
 }
 
 func newInteractiveRaftBackend(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
-	return newRaftBackend(randomRaftId(), config, peers, provider, true)
+	return _newRaftBackend(randomRaftId(), config, peers, provider, true)
 }
 
-func newRaftBackendWithId(newRaftId uint64, config *Config) (*raftBackend, error) {
-	return newRaftBackend(newRaftId, config, nil, nil, false)
+func newDetachedRaftBackendWithId(newRaftId uint64, config *Config) (*raftBackend, error) {
+	return _newRaftBackend(newRaftId, config, nil, nil, false)
 }
 
-func newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider SnapshotProvider, isInteractive bool) (*raftBackend, error) {
+func _newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider SnapshotProvider, isInteractive bool) (*raftBackend, error) {
 	logger := config.logger.WithFields(log.Fields{
 		"component": "raftBackend",
 		"raftId":    uint64ToString(newRaftId),

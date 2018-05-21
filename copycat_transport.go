@@ -71,7 +71,7 @@ func newTransport(config *Config, membership transportMembership) (*copyCatTrans
 // Yet another level of indirection so that this method can return an interface
 // used for unit testing
 func _transportNewRaftBackend(newRaftId uint64, config *Config) (transportRaftBackend, error) {
-	return newRaftBackendWithId(newRaftId, config)
+	return newDetachedRaftBackendWithId(newRaftId, config)
 }
 
 //////////////////////////////////////////
