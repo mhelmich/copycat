@@ -106,7 +106,7 @@ func TestStartRaftGroup(t *testing.T) {
 	}
 
 	peersCh := make(chan *[]pb.Peer, 1)
-	mockInteractiveRaftBackendFunc := func(config *Config, peers []pb.Peer) (*raftBackend, error) {
+	mockInteractiveRaftBackendFunc := func(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
 		peersCh <- &peers
 		return &raftBackend{raftId: localRaftIdToAssetOn}, nil
 	}
@@ -123,7 +123,7 @@ func TestStartRaftGroup(t *testing.T) {
 	}
 
 	dsId := randomRaftId()
-	rb, err := cc.startNewRaftGroup(dsId, 1)
+	rb, err := cc.startNewRaftGroup(dsId, 1, func() ([]byte, error) { return make([]byte, 0), nil })
 
 	assert.Nil(t, err)
 	assert.NotNil(t, rb)
@@ -137,6 +137,109 @@ func TestStartRaftGroup(t *testing.T) {
 	mockMembership.AssertNumberOfCalls(t, "getAddr", 1)
 	mockMembership.AssertNumberOfCalls(t, "addDataStructureToRaftIdMapping", 1)
 	assert.Equal(t, localRaftIdToAssetOn, rb.raftId)
+}
+
+func TestCopyCatConnectToDataStructureExisting(t *testing.T) {
+	host, _ := os.Hostname()
+	mockMembership := new(mockCopyCatMembership)
+	mockPeers := make([]pb.Peer, 3)
+	mockPeers[0] = pb.Peer{
+		Id:          randomRaftId(),
+		RaftAddress: "",
+	}
+	mockPeers[1] = pb.Peer{
+		Id:          randomRaftId(),
+		RaftAddress: "",
+	}
+	mockPeers[2] = pb.Peer{
+		Id:          randomRaftId(),
+		RaftAddress: "",
+	}
+
+	mockMembership.On("peersForDataStructureId", mock.Anything).Return(mockPeers)
+	mockMembership.On("addDataStructureToRaftIdMapping", mock.Anything, mock.Anything).Return(nil)
+
+	mockClient := new(mockClient)
+
+	cc := &copyCatImpl{
+		myAddress:  host + ":" + strconv.Itoa(5599),
+		membership: mockMembership,
+		newCopyCatClientFunc: func(*sync.Map, string) (pb.CopyCatServiceClient, error) {
+			return mockClient, nil
+		},
+		newInteractiveRaftBackendFunc: func(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
+			return &raftBackend{
+				proposeChan: make(chan []byte),
+				commitChan:  make(chan []byte),
+				errorChan:   make(chan error),
+			}, nil
+		},
+		logger: log.WithFields(log.Fields{
+			"test": "TestCopyCatConnectToDataStructureExisting",
+		}),
+	}
+
+	myDataStructureId := randomRaftId()
+	proposeCh, commitCh, errorCh, snapshotConsumer := cc.ConnectToDataStructure(myDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
+	assert.NotNil(t, proposeCh)
+	assert.NotNil(t, commitCh)
+	assert.NotNil(t, errorCh)
+	assert.NotNil(t, snapshotConsumer)
+	mockMembership.AssertNumberOfCalls(t, "peersForDataStructureId", 1)
+	mockMembership.AssertNumberOfCalls(t, "addDataStructureToRaftIdMapping", 1)
+}
+
+func TestCopyCatConnectToDataStructureNew(t *testing.T) {
+	mockMembership := new(mockCopyCatMembership)
+	mockPeers := make([]pb.Peer, 0)
+	mockMembership.On("peersForDataStructureId", mock.Anything).Return(mockPeers)
+	mockMembership.On("addDataStructureToRaftIdMapping", mock.Anything, mock.Anything).Return(nil)
+	metadataMap := make(map[uint64]map[string]string)
+	metadataMap[randomRaftId()] = make(map[string]string)
+	metadataMap[randomRaftId()] = make(map[string]string)
+	metadataMap[randomRaftId()] = make(map[string]string)
+	mockMembership.On("getAllMetadata").Return(metadataMap)
+	mockMembership.On("getAddr", mock.Anything).Return("address_to_contact")
+
+	mockClient := new(mockClient)
+	aRandomRaftId := randomRaftId()
+	startResp := &pb.StartRaftResponse{
+		RaftId:      aRandomRaftId,
+		RaftAddress: "address_to_contact",
+	}
+	mockClient.On("StartRaft", mock.Anything, mock.Anything, mock.Anything).Return(startResp, nil)
+
+	host, _ := os.Hostname()
+	cc := &copyCatImpl{
+		myAddress:  host + ":" + strconv.Itoa(5599),
+		membership: mockMembership,
+		newCopyCatClientFunc: func(*sync.Map, string) (pb.CopyCatServiceClient, error) {
+			return mockClient, nil
+		},
+		newInteractiveRaftBackendFunc: func(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
+			return &raftBackend{
+				proposeChan: make(chan []byte),
+				commitChan:  make(chan []byte),
+				errorChan:   make(chan error),
+			}, nil
+		},
+		logger: log.WithFields(log.Fields{
+			"test": "TestCopyCatConnectToDataStructureNew",
+		}),
+	}
+
+	myDataStructureId := randomRaftId()
+	proposeCh, commitCh, errorCh, snapshotConsumer := cc.ConnectToDataStructure(myDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
+
+	assert.NotNil(t, proposeCh)
+	assert.NotNil(t, commitCh)
+	assert.NotNil(t, errorCh)
+	assert.NotNil(t, snapshotConsumer)
+	mockMembership.AssertNumberOfCalls(t, "peersForDataStructureId", 1)
+	mockMembership.AssertNumberOfCalls(t, "addDataStructureToRaftIdMapping", 1)
+	mockMembership.AssertNumberOfCalls(t, "getAllMetadata", 1)
+	mockMembership.AssertNumberOfCalls(t, "getAddr", 3)
+	mockClient.AssertNumberOfCalls(t, "StartRaft", 3)
 }
 
 type mockClient struct {

@@ -56,6 +56,9 @@ type raftBackend struct {
 	// A detached raft backend only answers to messages it receives via the network transport.
 	// Backends cannot be converted from one to the other. Once created, they are created.
 	isInteractive bool
+	// Interactive raft backends have a mechanism to ask the consuming application for the current state
+	// of the respective data structure. This is it.
+	snapshotProvider SnapshotProvider
 	// The last index that has been applied. It helps us figuring out which entries to publish.
 	appliedIndex uint64
 	// The index of the latest snapshot.
@@ -64,15 +67,15 @@ type raftBackend struct {
 	stopChan      chan struct{} // signals this raft backend should shut down (only used internally)
 }
 
-func newInteractiveRaftBackend(config *Config, peers []pb.Peer) (*raftBackend, error) {
-	return newRaftBackend(randomRaftId(), config, peers, true)
+func newInteractiveRaftBackend(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
+	return newRaftBackend(randomRaftId(), config, peers, provider, true)
 }
 
 func newRaftBackendWithId(newRaftId uint64, config *Config) (*raftBackend, error) {
-	return newRaftBackend(newRaftId, config, nil, false)
+	return newRaftBackend(newRaftId, config, nil, nil, false)
 }
 
-func newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, isInteractive bool) (*raftBackend, error) {
+func newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider SnapshotProvider, isInteractive bool) (*raftBackend, error) {
 	logger := config.logger.WithFields(log.Fields{
 		"component": "raftBackend",
 		"raftId":    uint64ToString(newRaftId),
@@ -112,6 +115,7 @@ func newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, isInterac
 		stopChan:               make(chan struct{}),
 		transport:              config.raftTransport,
 		isInteractive:          isInteractive,
+		snapshotProvider:       provider,
 		logger:                 logger,
 	}
 

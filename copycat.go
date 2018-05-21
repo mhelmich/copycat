@@ -35,7 +35,7 @@ type copyCatImpl struct {
 	myAddress                     string
 	addressToConnection           *sync.Map
 	newCopyCatClientFunc          func(*sync.Map, string) (pb.CopyCatServiceClient, error)
-	newInteractiveRaftBackendFunc func(config *Config, peers []pb.Peer) (*raftBackend, error)
+	newInteractiveRaftBackendFunc func(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error)
 	config                        *Config
 	logger                        *log.Entry
 }
@@ -92,8 +92,8 @@ func _newCopyCatServiceClient(m *sync.Map, address string) (pb.CopyCatServiceCli
 	return pb.NewCopyCatServiceClient(conn), nil
 }
 
-func _newInteractiveRaftBackend(config *Config, peers []pb.Peer) (*raftBackend, error) {
-	return newInteractiveRaftBackend(config, peers)
+func _newInteractiveRaftBackend(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
+	return newInteractiveRaftBackend(config, peers, provider)
 }
 
 // takes one operation, finds the leader remotely, and sends the operation to the leader
@@ -103,10 +103,9 @@ func (c *copyCatImpl) ConnectToDataStructure(id uint64, provider SnapshotProvide
 
 	peers := c.membership.peersForDataStructureId(id)
 	if len(peers) > 0 {
-		// TODO: find peers to connect to
-		interactiveBackend, err = c.createLocalRaft(id, nil)
+		interactiveBackend, err = c.createLocalRaft(id, peers, provider)
 	} else {
-		interactiveBackend, err = c.startNewRaftGroup(id, 2)
+		interactiveBackend, err = c.startNewRaftGroup(id, 3, provider)
 	}
 
 	if err != nil {
@@ -125,15 +124,13 @@ func (c *copyCatImpl) SubscribeToDataStructure(id uint64, provider SnapshotProvi
 	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
 }
 
-func (c *copyCatImpl) startNewRaftGroup(dataStructureId uint64, numReplicas int) (*raftBackend, error) {
-	// TODO: write glue code that lets you connect to a raft backend
-	// or put more generically: figure out raft backend connectivity
+func (c *copyCatImpl) startNewRaftGroup(dataStructureId uint64, numReplicas int, provider SnapshotProvider) (*raftBackend, error) {
 	remoteRafts, err := c.choosePeersForNewDataStructure(dataStructureId, c.membership.getAllMetadata(), numReplicas)
 	if err != nil {
 		return nil, err
 	}
 
-	localRaft, err := c.createLocalRaft(dataStructureId, remoteRafts)
+	localRaft, err := c.createLocalRaft(dataStructureId, remoteRafts, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -247,8 +244,8 @@ func (c *copyCatImpl) stopRaftRemotely(peer pb.Peer) error {
 	return err
 }
 
-func (c *copyCatImpl) createLocalRaft(dataStructureId uint64, peers []pb.Peer) (*raftBackend, error) {
-	backend, err := c.newInteractiveRaftBackendFunc(c.config, peers)
+func (c *copyCatImpl) createLocalRaft(dataStructureId uint64, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
+	backend, err := c.newInteractiveRaftBackendFunc(c.config, peers, provider)
 	if err != nil {
 		return nil, err
 	}
