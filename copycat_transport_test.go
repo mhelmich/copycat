@@ -20,6 +20,7 @@ import (
 	"context"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/coreos/etcd/raft/raftpb"
@@ -36,7 +37,7 @@ func TestTransportBasic(t *testing.T) {
 	assert.Nil(t, err)
 
 	m := &membership{
-		memberIdToTags:           make(map[uint64]map[string]string),
+		memberIdToTags:           &sync.Map{},
 		raftIdToAddress:          make(map[uint64]string),
 		dataStructureIdToRaftIds: make(map[uint64]map[uint64]bool),
 		logger: log.WithFields(log.Fields{
@@ -54,7 +55,7 @@ func TestTransportBasic(t *testing.T) {
 
 func TestTransportSendReceiveMessages(t *testing.T) {
 	m := &membership{
-		memberIdToTags:           make(map[uint64]map[string]string),
+		memberIdToTags:           &sync.Map{},
 		raftIdToAddress:          make(map[uint64]string),
 		dataStructureIdToRaftIds: make(map[uint64]map[uint64]bool),
 		logger: log.WithFields(log.Fields{

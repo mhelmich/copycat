@@ -19,6 +19,7 @@ package copycat
 import (
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -75,7 +76,7 @@ func TestMembershipBasicTwoNodes(t *testing.T) {
 
 func TestMembershipNodeJoin(t *testing.T) {
 	m := &membership{
-		memberIdToTags:           make(map[uint64]map[string]string),
+		memberIdToTags:           &sync.Map{},
 		raftIdToAddress:          make(map[uint64]string),
 		dataStructureIdToRaftIds: make(map[uint64]map[uint64]bool),
 		logger: log.WithFields(log.Fields{}),
@@ -115,8 +116,10 @@ func TestMembershipNodeJoin(t *testing.T) {
 	}
 	m.handleMemberJoinEvent(me)
 
-	assert.Equal(t, 3, len(m.memberIdToTags[stringToUint64(ms[0].Name)]))
-	assert.Equal(t, 3, len(m.memberIdToTags[stringToUint64(ms[1].Name)]))
+	tags, _ := m.memberIdToTags.Load(stringToUint64(ms[0].Name))
+	assert.Equal(t, 3, len(tags.(map[string]string)))
+	tags, _ = m.memberIdToTags.Load(stringToUint64(ms[1].Name))
+	assert.Equal(t, 3, len(tags.(map[string]string)))
 	assert.Equal(t, 2, len(m.raftIdToAddress))
 	assert.Equal(t, "machine1:9876", m.raftIdToAddress[uint64(66)])
 	assert.Equal(t, "machine2:9877", m.raftIdToAddress[uint64(88)])

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -46,7 +47,7 @@ type membership struct {
 
 	// these maps cache the serf state locally
 	// you can always fall back to querying the cluster if you want
-	memberIdToTags           map[uint64]map[string]string
+	memberIdToTags           *sync.Map
 	raftIdToAddress          map[uint64]string
 	dataStructureIdToRaftIds map[uint64]map[uint64]bool
 
@@ -105,7 +106,7 @@ func newMembership(config *Config) (*membership, error) {
 
 	m := &membership{
 		serf:                     surf,
-		memberIdToTags:           make(map[uint64]map[string]string),
+		memberIdToTags:           &sync.Map{},
 		raftIdToAddress:          make(map[uint64]string),
 		dataStructureIdToRaftIds: make(map[uint64]map[uint64]bool),
 		logger: logger,
@@ -153,7 +154,7 @@ func (m *membership) handleMemberJoinEvent(me serf.MemberEvent) {
 
 		addr := m.getAddr(mem.Tags)
 		memberId := stringToUint64(mem.Name)
-		m.memberIdToTags[memberId] = mem.Tags
+		m.memberIdToTags.Store(memberId, mem.Tags)
 
 		for dsId, raftId := range hi.DataStructureToRaftMapping {
 			m.raftIdToAddress[raftId] = addr
@@ -181,7 +182,7 @@ func (m *membership) handleMemberLeaveEvent(me serf.MemberEvent) {
 		}
 
 		memberId := stringToUint64(mem.Name)
-		delete(m.memberIdToTags, memberId)
+		m.memberIdToTags.Delete(memberId)
 
 		for dsId, raftId := range hi.DataStructureToRaftMapping {
 			delete(m.raftIdToAddress, raftId)
@@ -347,8 +348,18 @@ func (m *membership) getAddr(tags map[string]string) string {
 	return tags[serfMDKeyHost] + ":" + tags[serfMDKeyCopyCatPort]
 }
 
+// making a defensive copy of this map to prevent a data race
+// TODO: think about how to make this better
+// either pass out the sync.Map or a channel iterating through the map
 func (m *membership) getAllMetadata() map[uint64]map[string]string {
-	return m.memberIdToTags
+	returnMe := make(map[uint64]map[string]string)
+
+	m.memberIdToTags.Range(func(key interface{}, value interface{}) bool {
+		returnMe[key.(uint64)] = value.(map[string]string)
+		return true
+	})
+
+	return returnMe
 }
 
 func (m *membership) stop() error {
