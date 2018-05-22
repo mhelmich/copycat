@@ -19,86 +19,87 @@ package copycat
 import (
 	"context"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/coreos/etcd/raft/raftpb"
+	"github.com/mhelmich/copycat/pb"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestRaftBackendBasic(t *testing.T) {
 	fakeTransport := newFakeTransport()
-	log.SetLevel(log.DebugLevel)
 
-	// config1 := DefaultConfig()
-	// config1.CopyCatDataDir = "./test-TestRaftBackendBasic-" + uint64ToString(randomRaftId()) + "/"
-	// err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
-	// assert.Nil(t, err)
-	// config1.CopyCatPort = config1.CopyCatPort + 33333
-	// config1.raftTransport = fakeTransport
-	// config1.logger = log.WithFields(log.Fields{
-	// 	"raft1": "raft1",
-	// })
-	// detachedBackend1, err := newDetachedRaftBackendWithId(randomRaftId(), config1)
-	// assert.Nil(t, err)
-	// fakeTransport.add(detachedBackend1)
-	// assert.NotNil(t, detachedBackend1)
-	//
-	// config2 := DefaultConfig()
-	// config2.CopyCatDataDir = "./test-TestRaftBackendBasic-" + uint64ToString(randomRaftId()) + "/"
-	// err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
-	// assert.Nil(t, err)
-	// config2.CopyCatPort = config1.CopyCatPort + 10000
-	// config2.raftTransport = fakeTransport
-	// config2.logger = log.WithFields(log.Fields{
-	// 	"raft2": "raft2",
-	// })
-	// detachedBackend2, err := newDetachedRaftBackendWithId(randomRaftId(), config2)
-	// assert.Nil(t, err)
-	// fakeTransport.add(detachedBackend2)
-	// assert.NotNil(t, detachedBackend2)
+	config1 := DefaultConfig()
+	config1.CopyCatDataDir = "./test-TestRaftBackendBasic-" + uint64ToString(randomRaftId()) + "/"
+	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
+	assert.Nil(t, err)
+	config1.CopyCatPort = config1.CopyCatPort + 22222
+	config1.raftTransport = fakeTransport
+	config1.logger = log.WithFields(log.Fields{
+		"raft1": "raft1",
+	})
+	detachedBackend1, err := newDetachedRaftBackendWithId(randomRaftId(), config1)
+	assert.Nil(t, err)
+	fakeTransport.add(detachedBackend1)
+	assert.NotNil(t, detachedBackend1)
+
+	config2 := DefaultConfig()
+	config2.CopyCatDataDir = "./test-TestRaftBackendBasic-" + uint64ToString(randomRaftId()) + "/"
+	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
+	assert.Nil(t, err)
+	config2.CopyCatPort = config1.CopyCatPort + 1111
+	config2.raftTransport = fakeTransport
+	config2.logger = log.WithFields(log.Fields{
+		"raft2": "raft2",
+	})
+	detachedBackend2, err := newDetachedRaftBackendWithId(randomRaftId(), config2)
+	assert.Nil(t, err)
+	fakeTransport.add(detachedBackend2)
+	assert.NotNil(t, detachedBackend2)
 
 	config3 := DefaultConfig()
 	config3.CopyCatDataDir = "./test-TestRaftBackendBasic-" + uint64ToString(randomRaftId()) + "/"
-	err := os.MkdirAll(config3.CopyCatDataDir, os.ModePerm)
+	err = os.MkdirAll(config3.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
-	config3.CopyCatPort = config3.CopyCatPort + 33333
+	config3.CopyCatPort = config2.CopyCatPort + 1111
 	config3.raftTransport = fakeTransport
 	config3.logger = log.WithFields(log.Fields{
 		"raft3": "raft3",
 	})
-	// peers3 := make([]pb.Peer, 2)
-	// peers3[0] = pb.Peer{
-	// 	Id:          detachedBackend1.raftId,
-	// 	RaftAddress: config1.hostname + ":" + strconv.Itoa(config1.CopyCatPort),
-	// }
-	// peers3[1] = pb.Peer{
-	// 	Id:          detachedBackend2.raftId,
-	// 	RaftAddress: config2.hostname + ":" + strconv.Itoa(config2.CopyCatPort),
-	// }
-	interactiveBackend, err := newInteractiveRaftBackend(config3, nil, func() ([]byte, error) { return make([]byte, 0), nil })
+	peers3 := make([]pb.Peer, 2)
+	peers3[0] = pb.Peer{
+		Id:          detachedBackend1.raftId,
+		RaftAddress: config1.hostname + ":" + strconv.Itoa(config1.CopyCatPort),
+	}
+	peers3[1] = pb.Peer{
+		Id:          detachedBackend2.raftId,
+		RaftAddress: config2.hostname + ":" + strconv.Itoa(config2.CopyCatPort),
+	}
+	interactiveBackend, err := newInteractiveRaftBackend(config3, peers3, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
 	fakeTransport.add(interactiveBackend)
 	assert.NotNil(t, interactiveBackend)
 	time.Sleep(1 * time.Second)
 	consumeAndPrintEvents(interactiveBackend)
 	assert.NotNil(t, interactiveBackend.raftNode)
-	interactiveBackend.raftNode.Campaign(context.TODO())
 
 	interactiveBackend.proposeChan <- []byte("hello")
-	// interactiveBackend.proposeChan <- []byte("world")
+	interactiveBackend.proposeChan <- []byte("world")
 
+	// not waiting for anything in particular
 	time.Sleep(1 * time.Second)
 
-	// detachedBackend1.stop()
-	// detachedBackend2.stop()
+	detachedBackend1.stop()
+	detachedBackend2.stop()
 	interactiveBackend.stop()
 
-	// err = os.RemoveAll(config1.CopyCatDataDir)
-	// assert.Nil(t, err)
-	// err = os.RemoveAll(config2.CopyCatDataDir)
-	// assert.Nil(t, err)
+	err = os.RemoveAll(config1.CopyCatDataDir)
+	assert.Nil(t, err)
+	err = os.RemoveAll(config2.CopyCatDataDir)
+	assert.Nil(t, err)
 	err = os.RemoveAll(config3.CopyCatDataDir)
 	assert.Nil(t, err)
 }
@@ -108,9 +109,15 @@ func consumeAndPrintEvents(rb *raftBackend) {
 		go func() {
 			for {
 				select {
-				case c := <-rb.commitChan:
+				case c, ok := <-rb.commitChan:
+					if !ok {
+						return
+					}
 					log.Debugf("Committed %v", c)
-				case e := <-rb.errorChan:
+				case e, ok := <-rb.errorChan:
+					if !ok {
+						return
+					}
 					log.Debugf("Error %v", e)
 				}
 			}
@@ -134,7 +141,6 @@ func (ft *fakeTransport) add(rb *raftBackend) {
 
 func (ft *fakeTransport) sendMessages(msgs []raftpb.Message) {
 	for _, msg := range msgs {
-		log.Infof("Sending message from %d to %d", msg.From, msg.To)
 		rb, ok := ft.backends[msg.To]
 		if !ok {
 			log.Panicf("You didn't set the test correctly! Backend with id %d doesn't exist!", msg.To)

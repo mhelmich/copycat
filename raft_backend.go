@@ -69,7 +69,7 @@ type raftBackend struct {
 
 func newInteractiveRaftBackend(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
 	newRaftId := randomRaftId()
-	// if there are no peers, I need to at least add myself in order to start a raft group
+	// adding myself to the list of peers
 	peers = append(peers, pb.Peer{
 		Id:          newRaftId,
 		RaftAddress: config.hostname + ":" + strconv.Itoa(config.CopyCatPort),
@@ -318,9 +318,11 @@ func (rb *raftBackend) snapshot() ([]byte, error) {
 }
 
 func (rb *raftBackend) stop() {
+	// stop the raft node
+	rb.raftNode.Stop()
+	// stop the raft state machine
 	rb.stopChan <- struct{}{}
 	close(rb.stopChan)
-	rb.raftNode.Stop()
 
 	if rb.commitChan != nil {
 		close(rb.commitChan)
