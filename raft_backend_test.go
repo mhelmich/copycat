@@ -20,6 +20,7 @@ import (
 	"context"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -129,21 +130,22 @@ func consumeAndPrintEvents(rb *raftBackend) {
 
 func newFakeTransport() *fakeTransport {
 	return &fakeTransport{
-		backends: make(map[uint64]*raftBackend),
+		backends: &sync.Map{},
 	}
 }
 
 type fakeTransport struct {
-	backends map[uint64]*raftBackend
+	backends *sync.Map
 }
 
 func (ft *fakeTransport) add(rb *raftBackend) {
-	ft.backends[rb.raftId] = rb
+	ft.backends.Store(rb.raftId, rb)
 }
 
 func (ft *fakeTransport) sendMessages(msgs []raftpb.Message) {
 	for _, msg := range msgs {
-		rb, ok := ft.backends[msg.To]
+		val, ok := ft.backends.Load(msg.To)
+		rb := val.(*raftBackend)
 		if !ok {
 			log.Panicf("You didn't set the test correctly! Backend with id %d doesn't exist!", msg.To)
 		}
