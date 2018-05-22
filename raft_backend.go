@@ -126,9 +126,9 @@ func _newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider
 		c.Applied = hardState.Commit
 		raftNode = raft.RestartNode(c)
 	} else {
-		rpeers := make([]raft.Peer, len(peers))
+		raftPeers := make([]raft.Peer, len(peers))
 		for i := range peers {
-			rpeers[i] = raft.Peer{
+			raftPeers[i] = raft.Peer{
 				ID:      peers[i].Id,
 				Context: []byte(peers[i].RaftAddress),
 			}
@@ -139,7 +139,7 @@ func _newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider
 		// note: if rpeers is empty or nil at this point,
 		// the new backend will just sit idle and wait to join
 		// an existing cluster
-		raftNode = raft.StartNode(c, rpeers)
+		raftNode = raft.StartNode(c, raftPeers)
 	}
 
 	rb := &raftBackend{
@@ -216,7 +216,7 @@ func (rb *raftBackend) runRaftStateMachine() {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
-	// event loop on raft state machine updates
+	// event loop over raft state machine updates
 	for {
 		select {
 		case <-ticker.C:
