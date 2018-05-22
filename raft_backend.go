@@ -185,7 +185,10 @@ func (rb *raftBackend) serveProposalChannels() {
 				return
 			}
 			// blocks until accepted by raft state machine
-			rb.raftNode.Propose(context.TODO(), prop)
+			err := rb.raftNode.Propose(context.TODO(), prop)
+			if err != nil {
+				rb.logger.Errorf("Failed to propose change to raft: %s", err.Error())
+			}
 
 		case cc, ok := <-rb.proposeConfChangeChan:
 			if !ok {
@@ -193,9 +196,13 @@ func (rb *raftBackend) serveProposalChannels() {
 				rb.stop()
 				return
 			}
+			// TODO: find a better way to arrive at a config change number
 			confChangeCount++
 			cc.ID = confChangeCount
-			rb.raftNode.ProposeConfChange(context.TODO(), cc)
+			err := rb.raftNode.ProposeConfChange(context.TODO(), cc)
+			if err != nil {
+				rb.logger.Errorf("Failed to propose change to raft: %s", err.Error())
+			}
 		}
 	}
 }
