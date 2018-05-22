@@ -18,6 +18,7 @@ package copycat
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/coreos/etcd/raft"
@@ -27,12 +28,11 @@ import (
 )
 
 type raftBackend struct {
-	raftId                 uint64        // cluster-wide unique raft ID
-	peers                  []pb.Peer     // raft peer URLs
-	raftNode               raft.Node     // the actual raft node
-	transport              raftTransport // the transport used to send raft messages to other backends
-	store                  store         // the raft data store
-	startFromExistingState bool          // indicates whether this raft backend starts off with existing state or not
+	raftId    uint64        // cluster-wide unique raft ID
+	peers     []pb.Peer     // raft peer URLs
+	raftNode  raft.Node     // the actual raft node
+	transport raftTransport // the transport used to send raft messages to other backends
+	store     store         // the raft data store
 	// proposed changes to the data of this raft group
 	// write-only for the consumer
 	// read-only for the raftBacken
@@ -68,7 +68,14 @@ type raftBackend struct {
 }
 
 func newInteractiveRaftBackend(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
-	return _newRaftBackend(randomRaftId(), config, peers, provider, true)
+	newRaftId := randomRaftId()
+	// if there are no peers, I need to at least add myself in order to start a raft group
+	peers = append(peers, pb.Peer{
+		Id:          newRaftId,
+		RaftAddress: config.hostname + ":" + strconv.Itoa(config.CopyCatPort),
+	})
+
+	return _newRaftBackend(newRaftId, config, peers, provider, true)
 }
 
 func newDetachedRaftBackendWithId(newRaftId uint64, config *Config) (*raftBackend, error) {
@@ -83,7 +90,7 @@ func _newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider
 
 	storeDir := config.CopyCatDataDir + "raft-" + uint64ToString(newRaftId) + "/"
 	startFromExistingState := storageExists(storeDir)
-	bs, err := openBoltStorage(storeDir, config.logger)
+	bs, err := openBoltStorage(storeDir, logger)
 	if err != nil {
 		config.logger.Errorf("Can't open data store: %s", err.Error())
 		return nil, err
@@ -103,6 +110,38 @@ func _newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider
 		errorChan = make(chan error)
 	}
 
+	c := &raft.Config{
+		ID:              newRaftId,
+		ElectionTick:    10,
+		HeartbeatTick:   1,
+		Storage:         bs,
+		MaxSizePerMsg:   1024 * 1024 * 1024, // 1 GB (!!!)
+		MaxInflightMsgs: 256,
+		Logger:          logger,
+	}
+
+	var raftNode raft.Node
+	if startFromExistingState {
+		hardState, _, _ := bs.InitialState()
+		c.Applied = hardState.Commit
+		raftNode = raft.RestartNode(c)
+	} else {
+		rpeers := make([]raft.Peer, len(peers))
+		for i := range peers {
+			rpeers[i] = raft.Peer{
+				ID:      peers[i].Id,
+				Context: []byte(peers[i].RaftAddress),
+			}
+		}
+
+		// peers publishes all known nodes of this raft group
+		// raft needs to know how to connect to them
+		// note: if rpeers is empty or nil at this point,
+		// the new backend will just sit idle and wait to join
+		// an existing cluster
+		raftNode = raft.StartNode(c, rpeers)
+	}
+
 	rb := &raftBackend{
 		raftId:                newRaftId,
 		peers:                 peers,
@@ -111,42 +150,12 @@ func _newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider
 		commitChan:            commitChan,
 		errorChan:             errorChan,
 		store:                 bs,
-		startFromExistingState: startFromExistingState,
-		stopChan:               make(chan struct{}),
-		transport:              config.raftTransport,
-		isInteractive:          isInteractive,
-		snapshotProvider:       provider,
-		logger:                 logger,
-	}
-
-	go rb.startRaft()
-	return rb, nil
-}
-
-func (rb *raftBackend) startRaft() {
-	c := &raft.Config{
-		ID:              rb.raftId,
-		ElectionTick:    10,
-		HeartbeatTick:   1,
-		Storage:         rb.store,
-		MaxSizePerMsg:   1024 * 1024 * 1024, // 1 GB (!!!)
-		MaxInflightMsgs: 256,
-		Logger:          rb.logger,
-	}
-
-	if rb.startFromExistingState {
-		hardState, _, _ := rb.store.InitialState()
-		c.Applied = hardState.Commit
-		rb.raftNode = raft.RestartNode(c)
-	} else {
-		rpeers := make([]raft.Peer, len(rb.peers))
-		for i := range rpeers {
-			rpeers[i] = raft.Peer{
-				ID:      rb.peers[i].Id,
-				Context: []byte(rb.peers[i].RaftAddress),
-			}
-		}
-		rb.raftNode = raft.StartNode(c, rpeers)
+		raftNode:              raftNode,
+		stopChan:              make(chan struct{}),
+		transport:             config.raftTransport,
+		isInteractive:         isInteractive,
+		snapshotProvider:      provider,
+		logger:                logger,
 	}
 
 	if rb.isInteractive {
@@ -154,6 +163,7 @@ func (rb *raftBackend) startRaft() {
 	}
 
 	go rb.runRaftStateMachine()
+	return rb, nil
 }
 
 // this is called from the raft transport server
@@ -170,6 +180,8 @@ func (rb *raftBackend) serveProposalChannels() {
 		select {
 		case prop, ok := <-rb.proposeChan:
 			if !ok {
+				rb.logger.Info("Stopping proposals")
+				rb.stop()
 				return
 			}
 			// blocks until accepted by raft state machine
@@ -177,6 +189,8 @@ func (rb *raftBackend) serveProposalChannels() {
 
 		case cc, ok := <-rb.proposeConfChangeChan:
 			if !ok {
+				rb.logger.Info("Stopping proposals")
+				rb.stop()
 				return
 			}
 			confChangeCount++
@@ -223,6 +237,7 @@ func (rb *raftBackend) runRaftStateMachine() {
 
 			rb.transport.sendMessages(rd.Messages)
 			if ok := rb.publishEntries(rb.entriesToApply(rd.CommittedEntries)); !ok {
+				rb.logger.Error("Publishing committed entries failed. Shutting down...")
 				rb.stop()
 				return
 			}
@@ -230,6 +245,7 @@ func (rb *raftBackend) runRaftStateMachine() {
 			rb.raftNode.Advance()
 
 		case <-rb.stopChan:
+			rb.logger.Info("Stopping raft state machine loop")
 			return
 		}
 	}
@@ -247,7 +263,7 @@ func (rb *raftBackend) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry
 	firstIdx := ents[0].Index
 	if firstIdx > rb.appliedIndex+1 {
 		// if I'm getting invalid data, I'm shutting down
-		rb.logger.Errorf("first index of committed entry[%d] should <= progress.appliedIndex[%d] !", firstIdx, rb.appliedIndex)
+		rb.logger.Errorf("first index of committed entry [%d] should <= progress.appliedIndex[%d] !", firstIdx, rb.appliedIndex)
 		rb.stop()
 	}
 
@@ -305,6 +321,12 @@ func (rb *raftBackend) stop() {
 	rb.stopChan <- struct{}{}
 	close(rb.stopChan)
 	rb.raftNode.Stop()
-	close(rb.commitChan)
-	close(rb.errorChan)
+
+	if rb.commitChan != nil {
+		close(rb.commitChan)
+	}
+
+	if rb.errorChan != nil {
+		close(rb.errorChan)
+	}
 }
