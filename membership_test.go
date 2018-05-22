@@ -56,7 +56,7 @@ func TestMembershipBasicTwoNodes(t *testing.T) {
 
 	config2 := DefaultConfig()
 	config2.CopyCatDataDir = "./test-TestMembershipBasicTwoNodes-" + uint64ToString(randomRaftId()) + "/"
-	config2.GossipPort = config2.GossipPort + 10000
+	config2.GossipPort = config1.GossipPort + 100
 	config2.PeersToContact = make([]string, 1)
 	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.GossipPort)
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
