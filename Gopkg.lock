@@ -104,8 +104,8 @@
 [[projects]]
   name = "github.com/miekg/dns"
   packages = ["."]
-  revision = "eac804ceef194db2da6ee80c728d7658c8c805ff"
-  version = "v1.0.6"
+  revision = "e57bf427e68187a27e22adceac868350d7a7079b"
+  version = "v1.0.7"
 
 [[projects]]
   name = "github.com/oklog/ulid"
@@ -173,7 +173,7 @@
     "ipv6",
     "trace"
   ]
-  revision = "2491c5de3490fced2f6cff376127c667efeed857"
+  revision = "8e0cdda24ed423affc8f35c241e5e9b16180338e"
 
 [[projects]]
   branch = "master"
@@ -209,7 +209,7 @@
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "7bb2a897381c9c5ab2aeb8614f758d7766af68ff"
+  revision = "11a468237815f3a3ddf9f7c6e8b6b3b382a24d15"
 
 [[projects]]
   name = "google.golang.org/grpc"
