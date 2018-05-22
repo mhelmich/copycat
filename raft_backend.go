@@ -222,33 +222,37 @@ func (rb *raftBackend) runRaftStateMachine() {
 		case <-ticker.C:
 			rb.raftNode.Tick()
 
-		// store raft entries and hard state, then publish changes over commit channel
 		case rd := <-rb.raftNode.Ready():
-			rb.logger.Debugf("ID: %d Hardstate: %v Entries: %v Snapshot: %v Messages: %v Committed: %v", rb.raftId, rd.HardState, rd.Entries, rd.Snapshot, rd.Messages, rd.CommittedEntries)
-			rb.store.saveEntriesAndState(rd.Entries, rd.HardState)
-
-			if !raft.IsEmptySnap(rd.Snapshot) {
-				if err := rb.store.saveSnap(rd.Snapshot); err != nil {
-					rb.logger.Errorf("Couldn't save snapshot: %s", err.Error())
-				}
-
-				// rc.publishSnapshot(rd.Snapshot)
-			}
-
-			rb.transport.sendMessages(rd.Messages)
-			if ok := rb.publishEntries(rb.entriesToApply(rd.CommittedEntries)); !ok {
-				rb.logger.Error("Publishing committed entries failed. Shutting down...")
-				rb.stop()
-				return
-			}
-			// rc.maybeTriggerSnapshot()
-			rb.raftNode.Advance()
+			rb.procesReady(rd)
 
 		case <-rb.stopChan:
 			rb.logger.Info("Stopping raft state machine loop")
 			return
 		}
 	}
+}
+
+// store raft entries and hard state, then publish changes over commit channel
+func (rb *raftBackend) procesReady(rd raft.Ready) {
+	rb.logger.Debugf("ID: %d Hardstate: %v Entries: %v Snapshot: %v Messages: %v Committed: %v", rb.raftId, rd.HardState, rd.Entries, rd.Snapshot, rd.Messages, rd.CommittedEntries)
+	rb.store.saveEntriesAndState(rd.Entries, rd.HardState)
+
+	if !raft.IsEmptySnap(rd.Snapshot) {
+		if err := rb.store.saveSnap(rd.Snapshot); err != nil {
+			rb.logger.Errorf("Couldn't save snapshot: %s", err.Error())
+		}
+
+		// rc.publishSnapshot(rd.Snapshot)
+	}
+
+	rb.transport.sendMessages(rd.Messages)
+	if ok := rb.publishEntries(rb.entriesToApply(rd.CommittedEntries)); !ok {
+		rb.logger.Error("Publishing committed entries failed. Shutting down...")
+		rb.stop()
+		return
+	}
+	// rc.maybeTriggerSnapshot()
+	rb.raftNode.Advance()
 }
 
 func (rb *raftBackend) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry) {
