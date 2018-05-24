@@ -107,6 +107,11 @@ func TestRaftBackendBasic(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+// TODO
+func TestTriggerSnapshot(t *testing.T) {
+
+}
+
 func consumeAndPrintEvents(rb *raftBackend) {
 	if rb.isInteractive {
 		go func() {

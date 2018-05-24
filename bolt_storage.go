@@ -19,8 +19,6 @@ package copycat
 import (
 	"bytes"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	bolt "github.com/coreos/bbolt"
@@ -381,41 +379,45 @@ func (bs *boltStorage) saveEntriesAndState(entries []raftpb.Entry, hardState raf
 		}
 	}
 
-	// bs.printAllEntryIndexes()
 	return nil
 }
 
-func (bs *boltStorage) printAllEntryIndexes() {
-	tx, err := bs.db.Begin(false)
+// deletes all log entries older than the index provided
+func (bs *boltStorage) dropLogEntriesBeforeIndex(index uint64) error {
+	var key []byte
+	var err error
+
+	tx, err := bs.db.Begin(true)
 	if err != nil {
-		bs.logger.Warnf("Can't create txn: %s", err.Error())
-		return
+		return err
 	}
 
 	defer tx.Rollback()
-
-	lo, err := bs.FirstIndex()
-	if err != nil {
-		bs.logger.Warnf("Can't get first index: %s", err.Error())
-	}
-
-	hi, err := bs.LastIndex()
-	if err != nil {
-		bs.logger.Warnf("Can't get last aindex: %s", err.Error())
-	}
-
-	min := uint64ToBytes(lo)
-	max := uint64ToBytes(hi)
-
 	c := tx.Bucket(entriesBucket).Cursor()
-	indexes := make([]string, 0)
-	for k, _ := c.Seek(min); k != nil && bytes.Compare(k, max) <= 0; k, _ = c.Next() {
-		indexes = append(indexes, strconv.FormatUint(bytesToUint64(k), 10))
+	// find index
+	c.Seek(uint64ToBytes(index))
+	// move to the previous key
+	// and start deleteing
+	key, _ = c.Prev()
+
+	for key != nil {
+		err = c.Delete()
+		if err != nil {
+			bs.logger.Errorf("Couldn't delete key: %d", bytesToUint64(key))
+		}
+		key, _ = c.Prev()
 	}
 
-	bs.logger.Infof("ALL KEYS: %s", strings.Join(indexes, ", "))
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
+// Saves a raft snapshot by its index.
+// An existing with the same index will be overridden.
 func (bs *boltStorage) saveSnap(snap raftpb.Snapshot) error {
 	if raft.IsEmptySnap(snap) {
 		return nil
@@ -435,6 +437,38 @@ func (bs *boltStorage) saveSnap(snap raftpb.Snapshot) error {
 	err = tx.Bucket(snapshotsBucket).Put(uint64ToBytes(snap.Metadata.Index), bites)
 	if err != nil {
 		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Drops all existing indexes and only keeps the latest snapshots.
+func (bs *boltStorage) dropOldSnapshots(numberOfSnapshotsToKeep int) error {
+	var k []byte
+	tx, err := bs.db.Begin(true)
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+	c := tx.Bucket(snapshotsBucket).Cursor()
+	c.Last()
+	for i := 0; i < numberOfSnapshotsToKeep; i++ {
+		k, _ = c.Prev()
+	}
+
+	for k != nil {
+		err = c.Delete()
+		if err != nil {
+			bs.logger.Errorf("Can't delete key %d: %s", bytesToUint64(k), err.Error())
+		}
+
+		k, _ = c.Prev()
 	}
 
 	err = tx.Commit()

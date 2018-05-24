@@ -98,7 +98,9 @@ type store interface {
 	raft.Storage
 	saveConfigState(confState raftpb.ConfState) error
 	saveEntriesAndState(entries []raftpb.Entry, hardState raftpb.HardState) error
+	dropLogEntriesBeforeIndex(index uint64) error
 	saveSnap(snap raftpb.Snapshot) error
+	dropOldSnapshots(numberOfSnapshotsToKeep int) error
 	close()
 }
 

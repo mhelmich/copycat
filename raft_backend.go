@@ -63,8 +63,12 @@ type raftBackend struct {
 	appliedIndex uint64
 	// The index of the latest snapshot.
 	snapshotIndex uint64
-	logger        *log.Entry    // the logger to use by this struct
-	stopChan      chan struct{} // signals this raft backend should shut down (only used internally)
+	// The number of log entries after which we cut a snapshot.
+	snapshotFrequency uint64
+	// Defines the number of snapshots that CopyCat keeps before deleting old ones.
+	numberOfSnapshotsToKeep int
+	logger                  *log.Entry    // the logger to use by this struct
+	stopChan                chan struct{} // signals this raft backend should shut down (only used internally)
 }
 
 func newInteractiveRaftBackend(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
@@ -143,19 +147,21 @@ func _newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider
 	}
 
 	rb := &raftBackend{
-		raftId:                newRaftId,
-		peers:                 peers,
-		proposeChan:           proposeChan,
-		proposeConfChangeChan: proposeConfChangeChan,
-		commitChan:            commitChan,
-		errorChan:             errorChan,
-		store:                 bs,
-		raftNode:              raftNode,
-		stopChan:              make(chan struct{}),
-		transport:             config.raftTransport,
-		isInteractive:         isInteractive,
-		snapshotProvider:      provider,
-		logger:                logger,
+		raftId:                  newRaftId,
+		peers:                   peers,
+		proposeChan:             proposeChan,
+		proposeConfChangeChan:   proposeConfChangeChan,
+		commitChan:              commitChan,
+		errorChan:               errorChan,
+		store:                   bs,
+		raftNode:                raftNode,
+		stopChan:                make(chan struct{}),
+		transport:               config.raftTransport,
+		isInteractive:           isInteractive,
+		snapshotProvider:        provider,
+		snapshotFrequency:       uint64(1000),
+		numberOfSnapshotsToKeep: 2,
+		logger:                  logger,
 	}
 
 	if rb.isInteractive {
@@ -258,8 +264,67 @@ func (rb *raftBackend) procesReady(rd raft.Ready) {
 		rb.stop()
 		return
 	}
-	// rc.maybeTriggerSnapshot()
+	rb.maybeTriggerSnapshot()
 	rb.raftNode.Advance()
+}
+
+func (rb *raftBackend) maybeTriggerSnapshot() {
+	if rb.appliedIndex-rb.snapshotIndex < rb.snapshotFrequency {
+		// we didn't collect enough entries yet to warrant
+		// a new snapshot
+		return
+	}
+
+	// get snapshot from data structure
+	data, err := rb.snapshotProvider()
+	if err != nil {
+		rb.logger.Errorf("Couldn't get a snapshot: %s", err.Error())
+		return
+	}
+
+	// bake snapshot object by tossing all the metadata and byte arrays in there
+	snap, err := rb.bakeNewSnapshot(data)
+	if err != nil {
+		rb.logger.Errorf("Can't bake new snapshot: %s", err.Error())
+		return
+	}
+
+	// save the snapshot
+	err = rb.store.saveSnap(snap)
+	if err != nil {
+		rb.logger.Errorf("Can't save new snapshot: %s", err.Error())
+		return
+	}
+
+	// drop all log entries before the snapshot index
+	err = rb.store.dropLogEntriesBeforeIndex(snap.Metadata.Index)
+	if err != nil {
+		rb.logger.Errorf("Couldn't delete old log entries: %s", err.Error())
+	}
+
+	// drop old snapshots if applicable
+	err = rb.store.dropOldSnapshots(rb.numberOfSnapshotsToKeep)
+	if err != nil {
+		rb.logger.Errorf("Couldn't delete old snaphots: %s", err.Error())
+	}
+}
+
+func (rb *raftBackend) bakeNewSnapshot(data []byte) (raftpb.Snapshot, error) {
+	hardState, confState, err := rb.store.InitialState()
+	if err != nil {
+		return raftpb.Snapshot{}, err
+	}
+
+	metadata := raftpb.SnapshotMetadata{
+		ConfState: confState,
+		Index:     rb.appliedIndex,
+		Term:      hardState.Term,
+	}
+
+	return raftpb.Snapshot{
+		Data:     data,
+		Metadata: metadata,
+	}, nil
 }
 
 func (rb *raftBackend) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry) {
