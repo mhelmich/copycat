@@ -165,7 +165,7 @@ func TestMembershipHandleQuery(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func ___TestMembershipDataStructureQuery(t *testing.T) {
+func TestMembershipDataStructureQuery(t *testing.T) {
 	config1 := DefaultConfig()
 	config1.hostname = "127.0.0.1"
 	config1.CopyCatDataDir = "./test-TestMembershipDataStructureQuery-" + uint64ToString(randomRaftId()) + "/"
