@@ -151,16 +151,3 @@ func TestTransportStartStopRaft(t *testing.T) {
 	err = os.RemoveAll(config.CopyCatDataDir)
 	assert.Nil(t, err)
 }
-
-type mockRaftBackend struct {
-	mock.Mock
-}
-
-func (rb *mockRaftBackend) step(ctx context.Context, msg raftpb.Message) error {
-	args := rb.Called(ctx, msg)
-	return args.Error(0)
-}
-
-func (rb *mockRaftBackend) stop() {
-	rb.Called()
-}

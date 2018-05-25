@@ -24,6 +24,19 @@ import (
 	mock "github.com/stretchr/testify/mock"
 )
 
+type mockRaftBackend struct {
+	mock.Mock
+}
+
+func (rb *mockRaftBackend) step(ctx context.Context, msg raftpb.Message) error {
+	args := rb.Called(ctx, msg)
+	return args.Error(0)
+}
+
+func (rb *mockRaftBackend) stop() {
+	rb.Called()
+}
+
 type mockTransportMembership struct {
 	mock.Mock
 }
