@@ -25,10 +25,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/etcd/raft"
 	"github.com/coreos/etcd/raft/raftpb"
 	"github.com/mhelmich/copycat/pb"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestRaftBackendBasic(t *testing.T) {
@@ -133,6 +135,65 @@ func TestTriggerSnapshot(t *testing.T) {
 
 	store.close()
 	os.RemoveAll(dir)
+}
+
+func TestPublishSnaphot(t *testing.T) {
+	dir := "./test-TestPublishSnaphot-" + uint64ToString(randomRaftId()) + "/"
+	store, err := openBoltStorage(dir, log.WithFields(log.Fields{}))
+	assert.Nil(t, err)
+
+	mockTransport := new(mockRaftTransport)
+	mockTransport.On("sendMessages", mock.Anything).Return()
+	mockRaftNode := new(mockRaftNode)
+	mockRaftNode.On("Advance").Return()
+
+	mockBites := make([]byte, 1024)
+	rand.Read(mockBites)
+	mockSnapshot := raftpb.Snapshot{
+		Metadata: raftpb.SnapshotMetadata{
+			Index: uint64(99),
+		},
+		Data: mockBites,
+	}
+	mockReady := raft.Ready{
+		Snapshot: mockSnapshot,
+	}
+
+	commitCh := make(chan []byte, 1)
+
+	rb := &raftBackend{
+		raftId:            randomRaftId(),
+		isInteractive:     true,
+		commitChan:        commitCh,
+		appliedIndex:      uint64(0),
+		snapshotIndex:     uint64(0),
+		snapshotFrequency: uint64(1000),
+		transport:         mockTransport,
+		raftNode:          mockRaftNode,
+		logger:            log.WithFields(log.Fields{}),
+		store:             store,
+	}
+
+	ok := rb.procesReady(mockReady)
+	assert.True(t, ok)
+
+	assert.Equal(t, uint64(99), rb.appliedIndex)
+	assert.Equal(t, uint64(99), rb.snapshotIndex)
+	commit, ok := <-commitCh
+	assert.True(t, ok)
+	assert.Nil(t, commit)
+
+	snap, err := store.Snapshot()
+	assert.Nil(t, err)
+	assert.NotNil(t, snap.Data)
+	assert.Equal(t, 1024, len(snap.Data))
+
+	bites, err := rb.snapshot()
+	assert.Nil(t, err)
+	assert.Equal(t, 1024, len(bites))
+
+	mockTransport.AssertNumberOfCalls(t, "sendMessages", 1)
+	mockRaftNode.AssertNumberOfCalls(t, "Advance", 1)
 }
 
 func consumeAndPrintEvents(rb *raftBackend) {

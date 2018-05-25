@@ -164,35 +164,3 @@ func (rb *mockRaftBackend) step(ctx context.Context, msg raftpb.Message) error {
 func (rb *mockRaftBackend) stop() {
 	rb.Called()
 }
-
-type mockRaftTransport struct {
-	mock.Mock
-}
-
-func (t *mockRaftTransport) sendMessages(msgs []raftpb.Message) {
-	t.Called(msgs)
-}
-
-type mockTransportMembership struct {
-	mock.Mock
-}
-
-func (mtm *mockTransportMembership) addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error {
-	args := mtm.Called(dataStructureId, raftId)
-	return args.Error(0)
-}
-
-func (mtm *mockTransportMembership) getAddressForRaftId(raftId uint64) string {
-	args := mtm.Called(raftId)
-	return args.String(0)
-}
-
-func (mtm *mockTransportMembership) getAddressesForDataStructureId(dataStructureId uint64) []string {
-	args := mtm.Called(dataStructureId)
-	o := args.Get(0)
-	if o != nil {
-		return o.([]string)
-	}
-
-	return nil
-}

@@ -236,7 +236,11 @@ func (rb *raftBackend) runRaftStateMachine() {
 			rb.raftNode.Tick()
 
 		case rd := <-rb.raftNode.Ready():
-			rb.procesReady(rd)
+			if !rb.procesReady(rd) {
+				rb.logger.Error("Publishing committed entries failed. Shutting down...")
+				rb.stop()
+				return
+			}
 
 		case <-rb.stopChan:
 			rb.logger.Info("Stopping raft state machine loop")
@@ -246,26 +250,56 @@ func (rb *raftBackend) runRaftStateMachine() {
 }
 
 // store raft entries and hard state, then publish changes over commit channel
-func (rb *raftBackend) procesReady(rd raft.Ready) {
+// Returning false will stop the raft state machine!
+func (rb *raftBackend) procesReady(rd raft.Ready) bool {
 	rb.logger.Debugf("ID: %d Hardstate: %v Entries: %v Snapshot: %v Messages: %v Committed: %v", rb.raftId, rd.HardState, rd.Entries, rd.Snapshot, rd.Messages, rd.CommittedEntries)
 	rb.store.saveEntriesAndState(rd.Entries, rd.HardState)
 
 	if !raft.IsEmptySnap(rd.Snapshot) {
 		if err := rb.store.saveSnap(rd.Snapshot); err != nil {
 			rb.logger.Errorf("Couldn't save snapshot: %s", err.Error())
+			return false
 		}
 
-		// rc.publishSnapshot(rd.Snapshot)
+		rb.publishSnapshot(rd.Snapshot)
 	}
 
+	// TODO - find a good way to report the success of a snapshot message
+	// back to raft
 	rb.transport.sendMessages(rd.Messages)
 	if ok := rb.publishEntries(rb.entriesToApply(rd.CommittedEntries)); !ok {
-		rb.logger.Error("Publishing committed entries failed. Shutting down...")
-		rb.stop()
-		return
+		return false
 	}
 	rb.maybeTriggerSnapshot()
 	rb.raftNode.Advance()
+	return true
+}
+
+func (rb *raftBackend) publishSnapshot(snap raftpb.Snapshot) {
+	if snap.Metadata.Index <= rb.appliedIndex {
+		rb.logger.Errorf("Snapshot too old! Snap index [%d] applied index [%d]", snap.Metadata.Index, rb.appliedIndex)
+		return
+	}
+
+	// TODO - think this through
+	// BEWARE: There might be a race condition in here.
+	// In theory it's possible for the consumer to take some time when
+	// processing this nil (aka reload a snapshot).
+	// If there are back to back messages with snapshots, the second snapshot could
+	// override the first snapshot in our store.
+	// Therefore the first attempt to load the snapshot will actually load the
+	// second snapshot and everything might go down the drain at that point.
+	// However, the snapshot method of this object implements the callback
+	// the consumer will eventually call.
+	// It's possible to synchronize this call to stop the raft state machine
+	// while the consumer is loading the snapshot.
+	if rb.isInteractive {
+		rb.commitChan <- nil
+	}
+
+	rb.confState = snap.Metadata.ConfState
+	rb.snapshotIndex = snap.Metadata.Index
+	rb.appliedIndex = snap.Metadata.Index
 }
 
 func (rb *raftBackend) maybeTriggerSnapshot() {
@@ -388,6 +422,7 @@ func (rb *raftBackend) publishEntries(ents []raftpb.Entry) bool {
 	return true
 }
 
+// called by the snapshot provider handed to the consumer
 func (rb *raftBackend) snapshot() ([]byte, error) {
 	snap, err := rb.store.Snapshot()
 	return snap.Data, err
