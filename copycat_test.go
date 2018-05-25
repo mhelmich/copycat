@@ -46,6 +46,7 @@ func TestCopyCatBasic(t *testing.T) {
 func TestCopyCatNewDataStructure(t *testing.T) {
 	newDataStructureId := randomRaftId()
 	config1 := DefaultConfig()
+	config1.hostname = "127.0.0.1"
 	config1.CopyCatDataDir = "./test-TestCopyCatNewDataStructure-" + uint64ToString(randomRaftId()) + "/"
 	config1.GossipPort = config1.GossipPort + 22222
 	config1.CopyCatPort = config1.CopyCatPort + 22222
@@ -55,6 +56,7 @@ func TestCopyCatNewDataStructure(t *testing.T) {
 	assert.Nil(t, err)
 
 	config2 := DefaultConfig()
+	config2.hostname = "127.0.0.1"
 	config2.CopyCatDataDir = "./test-TestCopyCatNewDataStructure-" + uint64ToString(randomRaftId()) + "/"
 	config2.GossipPort = config1.GossipPort + 10000
 	config2.CopyCatPort = config1.CopyCatPort + 10000
