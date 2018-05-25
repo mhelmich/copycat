@@ -42,10 +42,6 @@
   version = "0.8.1"
 
 [[constraint]]
-  name = "github.com/oklog/ulid"
-  version = "0.3.0"
-
-[[constraint]]
   name = "github.com/sirupsen/logrus"
   version = "1.0.5"
 
