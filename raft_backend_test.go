@@ -194,6 +194,9 @@ func TestPublishSnaphot(t *testing.T) {
 
 	mockTransport.AssertNumberOfCalls(t, "sendMessages", 1)
 	mockRaftNode.AssertNumberOfCalls(t, "Advance", 1)
+
+	store.close()
+	os.RemoveAll(dir)
 }
 
 func consumeAndPrintEvents(rb *raftBackend) {
