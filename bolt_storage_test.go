@@ -187,7 +187,7 @@ func TestDropOldSnapshots(t *testing.T) {
 	store, err := openBoltStorage(dir, log.WithFields(log.Fields{}))
 	assert.Nil(t, err)
 
-	numSnapshotsToCreate := 111
+	numSnapshotsToCreate := 47
 	snapshotIndexes := make([]int, numSnapshotsToCreate)
 	for i := 0; i < numSnapshotsToCreate; i++ {
 		if i <= 0 {
@@ -205,17 +205,17 @@ func TestDropOldSnapshots(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, numSnapshotsToCreate, numItems)
 
-	err = store.dropOldSnapshots(57)
+	err = store.dropOldSnapshots(37)
 	assert.Nil(t, err)
 	numItems, err = numItemsInBucket(store, snapshotsBucket)
 	assert.Nil(t, err)
-	assert.Equal(t, 57, numItems)
+	assert.Equal(t, 37, numItems)
 
-	err = store.dropOldSnapshots(9)
+	err = store.dropOldSnapshots(11)
 	assert.Nil(t, err)
 	numItems, err = numItemsInBucket(store, snapshotsBucket)
 	assert.Nil(t, err)
-	assert.Equal(t, 9, numItems)
+	assert.Equal(t, 11, numItems)
 
 	store.close()
 	os.RemoveAll(dir)
@@ -227,8 +227,8 @@ func TestDropOldLogEntries(t *testing.T) {
 	store, err := openBoltStorage(dir, log.WithFields(log.Fields{}))
 	assert.Nil(t, err)
 
-	numEntriesToCreate := 11111
-	startIndex := 1234
+	numEntriesToCreate := 1111
+	startIndex := 123
 	a := make([]raftpb.Entry, numEntriesToCreate-startIndex)
 	hardState := raftpb.HardState{}
 	for i := startIndex; i < numEntriesToCreate; i++ {
@@ -255,7 +255,7 @@ func TestDropOldLogEntries(t *testing.T) {
 	entries, err := store.Entries(dropIndex, dropIndex+uint64(1), 1024*1024)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(entries))
-	assert.Equal(t, uint64(4938), entries[0].Index)
+	assert.Equal(t, uint64(494), entries[0].Index)
 
 	entries, err = store.Entries(dropIndex-uint64(1), dropIndex, 1024*1024)
 	assert.Nil(t, err)
