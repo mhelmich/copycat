@@ -84,7 +84,6 @@ func TestRaftBackendBasic(t *testing.T) {
 	assert.Nil(t, err)
 	fakeTransport.add(interactiveBackend)
 	assert.NotNil(t, interactiveBackend)
-	time.Sleep(1 * time.Second)
 	consumeAndPrintEvents(interactiveBackend)
 	assert.NotNil(t, interactiveBackend.raftNode)
 
