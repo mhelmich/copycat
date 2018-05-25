@@ -90,6 +90,7 @@ func TestTransportSendReceiveMessages(t *testing.T) {
 	m.raftIdToAddress[raftId] = receiver.config.hostname + ":" + strconv.Itoa(receiver.config.CopyCatPort)
 	mockBackend := new(mockRaftBackend)
 	mockBackend.On("step", mock.MatchedBy(func(ctx context.Context) bool { return true }), msgs[0]).Return(nil)
+	mockBackend.On("stop").Return()
 	receiver.raftBackends[raftId] = mockBackend
 
 	// run test
