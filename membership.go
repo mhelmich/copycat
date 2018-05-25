@@ -285,16 +285,16 @@ func (m *membership) addDataStructureToRaftIdMapping(dataStructureId uint64, raf
 	return m.serf.SetTags(setMe)
 }
 
-func (m *membership) findDataStructureWithId(id uint64) (string, error) {
+func (m *membership) findDataStructureWithId(id uint64) (*pb.Peer, error) {
 	req := &pb.DataStructureIdRequest{DataStructureId: id}
 	data, err := req.Marshal()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	serfQueryResp, err := m.serf.Query(strconv.Itoa(int(pb.DataStructureIdQuery)), data, m.serf.DefaultQueryParams())
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	defer serfQueryResp.Close()
@@ -305,18 +305,21 @@ func (m *membership) findDataStructureWithId(id uint64) (string, error) {
 		select {
 		case serfResp, ok := <-serfRespCh:
 			if !ok {
-				return "", fmt.Errorf("Serf response channel was closed")
+				return nil, fmt.Errorf("Serf response channel was closed")
 			}
 
 			if serfResp.Payload != nil {
 				resp := &pb.DataStructureIdResponse{}
 				err = resp.Unmarshal(serfResp.Payload)
 				if err == nil {
-					return resp.Address, nil
+					return &pb.Peer{
+						Id:          resp.RaftId,
+						RaftAddress: resp.Address,
+					}, nil
 				}
 			}
 		case <-time.After(time.Until(serfQueryResp.Deadline())):
-			return "", fmt.Errorf("Serf query timed out: %s", req.String())
+			return nil, fmt.Errorf("Serf query timed out: %s", req.String())
 		}
 	}
 }
@@ -346,6 +349,39 @@ func (m *membership) getAddressForRaftId(raftId uint64) string {
 
 func (m *membership) getAddr(tags map[string]string) string {
 	return tags[serfMDKeyHost] + ":" + tags[serfMDKeyCopyCatPort]
+}
+
+// For connection use cases, we just need one peer in the raft group
+// We don't care to get the complete list of peers - one is enough.
+// What we do care about though is that if we say the data structure doesn't exist,
+// it really doesn't exist.
+func (m *membership) onePeerForDataStructureId(dataStructureId uint64) (*pb.Peer, error) {
+	raftIdsMap, ok := m.dataStructureIdToRaftIds[dataStructureId]
+	// we got nothing in our local cache
+	// let's make sure the entire cluster doesn't know about this data structure
+	if !ok {
+		peer, err := m.findDataStructureWithId(dataStructureId)
+		if err != nil {
+			return nil, err
+		} else if peer == nil {
+			return nil, fmt.Errorf("Can't find data structure with id [%d]", dataStructureId)
+		}
+
+		return peer, nil
+	}
+
+	// cache hit!
+	for raftId := range raftIdsMap {
+		addr, ok := m.raftIdToAddress[raftId]
+		if ok {
+			return &pb.Peer{
+				Id:          raftId,
+				RaftAddress: addr,
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("Can't find data structure with id [%d]", dataStructureId)
 }
 
 func (m *membership) peersForDataStructureId(dataStructureId uint64) []pb.Peer {

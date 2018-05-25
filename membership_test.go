@@ -193,9 +193,10 @@ func TestMembershipDataStructureQuery(t *testing.T) {
 	m2.raftIdToAddress[raftId1] = theAddressImLookingFor
 
 	log.Infof("Querying for DS with id [%d]", randomDSId)
-	address, err := m1.findDataStructureWithId(randomDSId)
+	peer, err := m1.findDataStructureWithId(randomDSId)
 	assert.Nil(t, err)
-	assert.Equal(t, theAddressImLookingFor, address)
+	assert.Equal(t, raftId1, peer.Id)
+	assert.Equal(t, theAddressImLookingFor, peer.RaftAddress)
 
 	err = m1.stop()
 	assert.Nil(t, err)
