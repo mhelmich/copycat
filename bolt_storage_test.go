@@ -27,7 +27,7 @@ import (
 )
 
 func TestBoltStorageBasic(t *testing.T) {
-	dir := "./test-TestBoltStorageBasic" + uint64ToString(randomRaftId()) + "/"
+	dir := "./test-TestBoltStorageBasic-" + uint64ToString(randomRaftId()) + "/"
 	store, err := openBoltStorage(dir, log.WithFields(log.Fields{}))
 	assert.Nil(t, err)
 
@@ -41,7 +41,7 @@ func TestBoltStorageBasic(t *testing.T) {
 }
 
 func TestBoltStorageSaveSnapshot(t *testing.T) {
-	dir := "./test-TestBoltStorageSaveSnapshot" + uint64ToString(randomRaftId()) + "/"
+	dir := "./test-TestBoltStorageSaveSnapshot-" + uint64ToString(randomRaftId()) + "/"
 	store, err := openBoltStorage(dir, log.WithFields(log.Fields{}))
 	assert.Nil(t, err)
 
@@ -73,7 +73,7 @@ func TestBoltStorageSaveSnapshot(t *testing.T) {
 }
 
 func TestBoltStorageFunWithEntries(t *testing.T) {
-	dir := "./test-TestBoltStorageFunWithEntries" + uint64ToString(randomRaftId()) + "/"
+	dir := "./test-TestBoltStorageFunWithEntries-" + uint64ToString(randomRaftId()) + "/"
 	store, err := openBoltStorage(dir, log.WithFields(log.Fields{}))
 	assert.Nil(t, err)
 
@@ -150,7 +150,7 @@ func TestBoltStorageFunWithEntries(t *testing.T) {
 }
 
 func TestBoltStorageNoKeysFound(t *testing.T) {
-	dir := "./test-TestBoltStorageNoKeysFound" + uint64ToString(randomRaftId()) + "/"
+	dir := "./test-TestBoltStorageNoKeysFound-" + uint64ToString(randomRaftId()) + "/"
 	store, err := openBoltStorage(dir, log.WithFields(log.Fields{}))
 	assert.Nil(t, err)
 
@@ -166,7 +166,7 @@ func TestBoltStorageNoKeysFound(t *testing.T) {
 }
 
 func TestBoltStorageExistingDB(t *testing.T) {
-	dir := "./test-TestBoltStorageExistingDB" + uint64ToString(randomRaftId()) + "/"
+	dir := "./test-TestBoltStorageExistingDB-" + uint64ToString(randomRaftId()) + "/"
 
 	b := storageExists(dir)
 	assert.False(t, b)
@@ -183,7 +183,7 @@ func TestBoltStorageExistingDB(t *testing.T) {
 
 func TestDropOldSnapshots(t *testing.T) {
 	var err error
-	dir := "./test-TestDropOldSnapshots" + uint64ToString(randomRaftId()) + "/"
+	dir := "./test-TestDropOldSnapshots-" + uint64ToString(randomRaftId()) + "/"
 	store, err := openBoltStorage(dir, log.WithFields(log.Fields{}))
 	assert.Nil(t, err)
 
@@ -223,7 +223,7 @@ func TestDropOldSnapshots(t *testing.T) {
 
 func TestDropOldLogEntries(t *testing.T) {
 	var err error
-	dir := "./test-TestDropOldLogEntries" + uint64ToString(randomRaftId()) + "/"
+	dir := "./test-TestDropOldLogEntries-" + uint64ToString(randomRaftId()) + "/"
 	store, err := openBoltStorage(dir, log.WithFields(log.Fields{}))
 	assert.Nil(t, err)
 

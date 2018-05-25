@@ -107,7 +107,7 @@ func TestRaftBackendBasic(t *testing.T) {
 }
 
 func TestTriggerSnapshot(t *testing.T) {
-	dir := "./test-TestTriggerSnapshot" + uint64ToString(randomRaftId()) + "/"
+	dir := "./test-TestTriggerSnapshot-" + uint64ToString(randomRaftId()) + "/"
 	store, err := openBoltStorage(dir, log.WithFields(log.Fields{}))
 	assert.Nil(t, err)
 
@@ -131,6 +131,9 @@ func TestTriggerSnapshot(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, rb.appliedIndex, snap.Metadata.Index)
 	assert.Equal(t, 1024, len(snap.Data))
+
+	store.close()
+	os.RemoveAll(dir)
 }
 
 func consumeAndPrintEvents(rb *raftBackend) {
