@@ -53,6 +53,8 @@ func newCopyCat(config *Config) (*copyCatImpl, error) {
 		return nil, err
 	}
 
+	// HACK
+	// this will be used at raft backend creation
 	config.raftTransport = t
 	return &copyCatImpl{
 		transport:                     t,
@@ -144,19 +146,25 @@ func (c *copyCatImpl) choosePeersForNewDataStructure(dataStructureId uint64, pee
 	}
 
 	newPeers := make([]pb.Peer, numPeers)
+	// HACK
 	idxOfPeerToContact := 0
 	ch := make(chan *pb.Peer)
 
+	// Iterate through the map and unfortunately I need to keep track of the index into the map!?!?
+	// Yes, I know: maps - ordering of iteration!?!?! Yeah...not great but practical :p
+	// There's no underlying weird reason I do this other than laziness.
 	for _, tags := range peersMetadata {
 		if idxOfPeerToContact >= numPeers {
 			break
 		}
 
+		// fire off remote raft creation
 		localTags := tags
 		go c.startRaftRemotely(ch, dataStructureId, localTags)
 		idxOfPeerToContact++
 	}
 
+	// HACK
 	timeout := time.Now().Add(5 * time.Second)
 	j := 0
 

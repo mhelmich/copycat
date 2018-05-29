@@ -351,6 +351,16 @@ func (m *membership) getAddr(tags map[string]string) string {
 	return tags[serfMDKeyHost] + ":" + tags[serfMDKeyCopyCatPort]
 }
 
+func (m *membership) getAddressForPeer(peerId uint64) string {
+	val, ok := m.memberIdToTags.Load(peerId)
+	if ok {
+		tags := val.(map[string]string)
+		return m.getAddr(tags)
+	}
+
+	return ""
+}
+
 // For connection use cases, we just need one peer in the raft group
 // We don't care to get the complete list of peers - one is enough.
 // What we do care about though is that if we say the data structure doesn't exist,
@@ -418,6 +428,27 @@ func (m *membership) getAllMetadata() map[uint64]map[string]string {
 	})
 
 	return returnMe
+}
+
+func (m *membership) pickFromMetadata(picker func(peerId uint64, tags map[string]string) bool, numItemsToPick int) []uint64 {
+	pickedPeers := make([]uint64, numItemsToPick)
+	idx := 0
+
+	m.memberIdToTags.Range(func(key interface{}, value interface{}) bool {
+		id := key.(uint64)
+		t := value.(map[string]string)
+		shouldPick := picker(id, t)
+		// add the peer if the picker returned true
+		if shouldPick {
+			pickedPeers[idx] = id
+			idx++
+		}
+
+		// stop iterating if the array is full
+		return idx < numItemsToPick
+	})
+
+	return pickedPeers
 }
 
 func (m *membership) stop() error {
