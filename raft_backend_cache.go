@@ -62,15 +62,15 @@ func (rbc *raftBackendCache) stepRaft(ctx context.Context, msg raftpb.Message) e
 }
 
 func (rbc *raftBackendCache) newDetachedRaftBackend(raftId uint64, config *Config) (transportRaftBackend, error) {
-	transportRaftBackend, err := newDetachedRaftBackendWithId(raftId, config)
+	backend, err := newDetachedRaftBackendWithId(raftId, config)
 	if err == nil {
-		_, loaded := rbc.raftIdToRaftBackend.LoadOrStore(raftId, transportRaftBackend)
+		_, loaded := rbc.raftIdToRaftBackend.LoadOrStore(raftId, backend)
 		if loaded {
-			defer transportRaftBackend.stop()
+			defer backend.stop()
 			return nil, fmt.Errorf("Raft backend with id [%d] existed already", raftId)
 		}
 	}
-	return transportRaftBackend, err
+	return backend, err
 }
 
 func (rbc *raftBackendCache) newInteractiveRaftBackend(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
@@ -105,9 +105,14 @@ func (rbc *raftBackendCache) chooseReplicaNode(dataStructureId uint64, numReplic
 	newRafts := make([]pb.Peer, numReplicas)
 	timeout := time.Now().Add(5 * time.Second)
 	j := 0
+
 	for {
 		select {
-		case peer := <-peerCh:
+		case peer, ok := <-peerCh:
+			if !ok {
+				return newRafts, nil
+			}
+
 			if peer == nil {
 				// TODO
 				// I got an empty response from one of the peers I contacted,
@@ -187,6 +192,23 @@ func (rbc *raftBackendCache) newCopyCatServiceClient(m *sync.Map, address string
 	}
 
 	return pb.NewCopyCatServiceClient(conn), nil
+}
+
+// This is a best-effort stop.
+// Other go routines could come in and create new backends or connections
+// at the same time.
+func (rbc *raftBackendCache) stop() {
+	rbc.raftIdToRaftBackend.Range(func(key, value interface{}) bool {
+		backend := value.(*raftBackend)
+		defer backend.stop()
+		return true
+	})
+
+	rbc.addressToConnection.Range(func(key, value interface{}) bool {
+		conn := value.(*grpc.ClientConn)
+		defer conn.Close()
+		return true
+	})
 }
 
 func _getConnectionForAddress(m *sync.Map, address string) (*grpc.ClientConn, error) {
