@@ -121,7 +121,10 @@ func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) *messageSendingRe
 			continue
 		}
 
-		stream, err := client.Send(context.Background())
+		// cancelling the context removes background go routines in the grpc implementation
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		stream, err := client.Send(ctx)
 		if err != nil {
 			t.logger.Errorf("Can't get stream: %s", err.Error())
 			continue
