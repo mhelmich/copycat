@@ -80,6 +80,7 @@ func TestMembershipBasicTwoNodes(t *testing.T) {
 func TestMembershipNodeJoin(t *testing.T) {
 	m := &membership{
 		memberIdToTags:           &sync.Map{},
+		serfTagMutex:             &sync.Mutex{},
 		raftIdToAddress:          make(map[uint64]string),
 		dataStructureIdToRaftIds: make(map[uint64]map[uint64]bool),
 		logger: log.WithFields(log.Fields{}),
@@ -195,6 +196,8 @@ func TestMembershipDataStructureQuery(t *testing.T) {
 	log.Infof("Querying for DS with id [%d]", randomDSId)
 	peer, err := m1.findDataStructureWithId(randomDSId)
 	assert.Nil(t, err)
+	assert.NotNil(t, peer)
+	log.Infof("Got response: %s", peer)
 	assert.Equal(t, raftId1, peer.Id)
 	assert.Equal(t, theAddressImLookingFor, peer.RaftAddress)
 
@@ -244,6 +247,49 @@ func TestMembershipPeersForDataStructure(t *testing.T) {
 
 	peers = m.peersForDataStructureId(myDataStructureId + 3)
 	assert.Equal(t, 0, len(peers))
+}
+
+func TestMembershipAddRemoveDataStructureToRaftIdMapping(t *testing.T) {
+	config := DefaultConfig()
+	config.hostname = "127.0.0.1"
+	config.CopyCatDataDir = "./test-TestMembershipAddRemoveDataStructureToRaftIdMapping-" + uint64ToString(randomRaftId()) + "/"
+	err := os.MkdirAll(config.CopyCatDataDir, os.ModePerm)
+	assert.Nil(t, err)
+	m, err := newMembership(config)
+	assert.Nil(t, err)
+
+	dataStructureId := uint64(123)
+	raftId := uint64(456)
+
+	err = m.addDataStructureToRaftIdMapping(dataStructureId, raftId)
+	assert.Nil(t, err)
+
+	tags := m.serf.LocalMember().Tags
+	hostedItems := tags[serfMDKeyHostedItems]
+	hi := &pb.HostedItems{}
+	err = proto.UnmarshalText(hostedItems, hi)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(hi.DataStructureToRaftMapping))
+	raftIdIRead, ok := hi.DataStructureToRaftMapping[dataStructureId]
+	assert.True(t, ok)
+	assert.Equal(t, raftId, raftIdIRead)
+
+	err = m.removeDataStructureToRaftIdMapping(raftId)
+	assert.Nil(t, err)
+
+	tags = m.serf.LocalMember().Tags
+	hostedItems = tags[serfMDKeyHostedItems]
+	hi = &pb.HostedItems{}
+	err = proto.UnmarshalText(hostedItems, hi)
+	assert.Nil(t, err)
+	assert.Equal(t, 0, len(hi.DataStructureToRaftMapping))
+	_, ok = hi.DataStructureToRaftMapping[dataStructureId]
+	assert.False(t, ok)
+
+	err = m.stop()
+	assert.Nil(t, err)
+	err = os.RemoveAll(config.CopyCatDataDir)
+	assert.Nil(t, err)
 }
 
 func mockTags(host string, port int, hostedItems string) map[string]string {

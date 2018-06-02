@@ -143,7 +143,7 @@ func TestPublishSnaphot(t *testing.T) {
 	assert.Nil(t, err)
 
 	mockTransport := new(mockRaftTransport)
-	mockTransport.On("sendMessages", mock.Anything).Return()
+	mockTransport.On("sendMessages", mock.Anything).Return(nil)
 	mockRaftNode := new(mockRaftNode)
 	mockRaftNode.On("Advance").Return()
 
@@ -234,7 +234,7 @@ func (ft *fakeTransport) add(rb *raftBackend) {
 	ft.backends.Store(rb.raftId, rb)
 }
 
-func (ft *fakeTransport) sendMessages(msgs []raftpb.Message) {
+func (ft *fakeTransport) sendMessages(msgs []raftpb.Message) *messageSendingResults {
 	for _, msg := range msgs {
 		val, ok := ft.backends.Load(msg.To)
 		rb := val.(*raftBackend)
@@ -247,4 +247,6 @@ func (ft *fakeTransport) sendMessages(msgs []raftpb.Message) {
 			log.Errorf("Error stepping in raft %d: %s", msg.To, err.Error())
 		}
 	}
+
+	return nil
 }

@@ -64,10 +64,14 @@ type Config struct {
 	// Even though the API doesn't prescribe a string size, shorter is better.
 	Location string
 
-	// Popluated internally.
+	// Populated internally.
 	raftTransport raftTransport
 	hostname      string
 	logger        *log.Entry
+}
+
+func (c *Config) address() string {
+	return c.hostname + ":" + strconv.Itoa(c.CopyCatPort)
 }
 
 // NewCopyCat initiates and starts the copycat framework.
@@ -81,7 +85,7 @@ type CopyCat interface {
 	// In addition to that a SnapshotProvider needs to be passed in to enable CopyCat to create consistent snapshots.
 	// CopyCat responds with a write only proposal channel, a read-only commit channel, a read-only error channel, and
 	// a SnapshotConsumer that is used to retrieve consistent snapshots from CopyCat.
-	ConnectToDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer)
+	ConnectToDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error)
 	Shutdown()
 }
 
@@ -107,31 +111,32 @@ type store interface {
 // Internal interface that is only used in CopyCat raft backend.
 // It was introduced for mocking purposes.
 type raftTransport interface {
-	sendMessages(msgs []raftpb.Message)
+	sendMessages(msgs []raftpb.Message) *messageSendingResults
 }
 
-// Internal interface that is only used in CopyCat transport.
+// Internal interface that is used in copycat and the transport.
 // It was introduced for mocking purposes.
-type transportRaftBackend interface {
-	step(ctx context.Context, msg raftpb.Message) error
-	stop()
-}
-
-// Internal interface that is only used in CopyCat transport.
-// It was introduced for mocking purposes.
-type transportMembership interface {
-	addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error
-	getAddressForRaftId(raftId uint64) string
-	getAddressesForDataStructureId(dataStructureId uint64) []string
-}
-
-// Internal interface that is only used in CopyCat.
-// It was introduced for mocking purposes.
-type copyCatMembership interface {
-	addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error
-	getAddr(tags map[string]string) string
-	getAllMetadata() map[uint64]map[string]string
+type membershipProxy interface {
+	getRaftTransportServiceClientForRaftId(raftId uint64) (pb.RaftTransportServiceClient, error)
 	peersForDataStructureId(dataStructureId uint64) []pb.Peer
+	chooseReplicaNode(dataStructureId uint64, numReplicas int) ([]pb.Peer, error)
+	newDetachedRaftBackend(dataStructureId uint64, raftId uint64, config *Config) (*raftBackend, error)
+	newInteractiveRaftBackend(dataStructureId uint64, config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error)
+	stopRaft(raftId uint64) error
+	stepRaft(ctx context.Context, msg raftpb.Message) error
+	stop() error
+}
+
+// Internal interface that is used in copycat and the transport.
+// It was introduced for mocking purposes.
+type memberList interface {
+	peersForDataStructureId(dataStructureId uint64) []pb.Peer
+	addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error
+	removeDataStructureToRaftIdMapping(raftId uint64) error
+	getAddressForRaftId(raftId uint64) string
+	pickFromMetadata(picker func(peerId uint64, tags map[string]string) bool, numItemsToPick int) []uint64
+	getAddressForPeer(peerId uint64) string
+	myGossipNodeId() uint64
 	stop() error
 }
 

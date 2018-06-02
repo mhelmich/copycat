@@ -17,28 +17,23 @@
 package copycat
 
 import (
-	"sync"
-	"testing"
+	"context"
 
-	"github.com/stretchr/testify/assert"
+	raftpb "github.com/coreos/etcd/raft/raftpb"
+	mock "github.com/stretchr/testify/mock"
 )
 
-func TestConversions(t *testing.T) {
-	i := randomRaftId()
+// Thanks mockery!
 
-	bites := uint64ToBytes(i)
-	assert.Equal(t, i, bytesToUint64(bites))
-
-	str := uint64ToString(i)
-	assert.Equal(t, i, stringToUint64(str))
+type mockRaftBackend struct {
+	mock.Mock
 }
 
-func sizeOfMap(m *sync.Map) int {
-	var i int
-	m.Range(func(key, value interface{}) bool {
-		i++
-		return true
-	})
+func (rb *mockRaftBackend) step(ctx context.Context, msg raftpb.Message) error {
+	args := rb.Called(ctx, msg)
+	return args.Error(0)
+}
 
-	return i
+func (rb *mockRaftBackend) stop() {
+	rb.Called()
 }

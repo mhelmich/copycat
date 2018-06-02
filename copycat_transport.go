@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strconv"
 
 	"github.com/coreos/etcd/raft/raftpb"
 	"github.com/mhelmich/copycat/pb"
@@ -30,16 +29,14 @@ import (
 )
 
 type copyCatTransport struct {
-	config             *Config
-	grpcServer         *grpc.Server
-	myAddress          string
-	raftBackends       map[uint64]transportRaftBackend
-	membership         transportMembership
-	newRaftBackendFunc func(uint64, *Config) (transportRaftBackend, error) // pulled out for testing
-	logger             *log.Entry
+	config     *Config
+	grpcServer *grpc.Server
+	myAddress  string
+	membership membershipProxy
+	logger     *log.Entry
 }
 
-func newTransport(config *Config, membership transportMembership) (*copyCatTransport, error) {
+func newTransport(config *Config, membership membershipProxy) (*copyCatTransport, error) {
 	logger := config.logger.WithFields(log.Fields{
 		"component": "copycat_transport",
 	})
@@ -52,13 +49,11 @@ func newTransport(config *Config, membership transportMembership) (*copyCatTrans
 	}
 
 	transport := &copyCatTransport{
-		config:             config,
-		grpcServer:         grpc.NewServer(),
-		myAddress:          myAddress,
-		raftBackends:       make(map[uint64]transportRaftBackend),
-		membership:         membership,
-		newRaftBackendFunc: _transportNewRaftBackend,
-		logger:             logger,
+		config:     config,
+		grpcServer: grpc.NewServer(),
+		myAddress:  myAddress,
+		membership: membership,
+		logger:     logger,
 	}
 
 	pb.RegisterCopyCatServiceServer(transport.grpcServer, transport)
@@ -66,12 +61,6 @@ func newTransport(config *Config, membership transportMembership) (*copyCatTrans
 	go transport.grpcServer.Serve(lis)
 
 	return transport, nil
-}
-
-// Yet another level of indirection so that this method can return an interface
-// used for unit testing
-func _transportNewRaftBackend(newRaftId uint64, config *Config) (transportRaftBackend, error) {
-	return newDetachedRaftBackendWithId(newRaftId, config)
 }
 
 //////////////////////////////////////////
@@ -83,26 +72,18 @@ func (t *copyCatTransport) StartRaft(ctx context.Context, in *pb.StartRaftReques
 	// A raft backend is started in join mode but without specifying other peers.
 	// It will just sit there and do nothing until a leader with higher term contacts it.
 	// After that the new backend will try to respond to the messages it has been receiving and join the cluster.
-	backend, err := t.newRaftBackendFunc(newRaftId, t.config)
+	_, err := t.membership.newDetachedRaftBackend(in.DataStructureId, newRaftId, t.config)
 	if err != nil {
-		t.logger.Errorf("Can't create raft backend: %s", err.Error())
-		return nil, err
+		t.logger.Errorf("Couldn't create detached raft backend from request [%s]: %s", in.String(), err.Error())
 	}
-
-	t.raftBackends[newRaftId] = backend
-	t.membership.addDataStructureToRaftIdMapping(in.DataStructureId, newRaftId)
 	return &pb.StartRaftResponse{
 		RaftId:      newRaftId,
-		RaftAddress: t.config.hostname + ":" + strconv.Itoa(t.config.CopyCatPort),
+		RaftAddress: t.myAddress,
 	}, nil
 }
 
 func (t *copyCatTransport) StopRaft(ctx context.Context, in *pb.StopRaftRequest) (*pb.StopRaftResponse, error) {
-	rb, ok := t.raftBackends[in.RaftId]
-	if ok {
-		delete(t.raftBackends, in.RaftId)
-		defer rb.stop()
-	}
+	t.membership.stopRaft(in.RaftId)
 	return &pb.StopRaftResponse{}, nil
 }
 
@@ -119,77 +100,85 @@ func (t *copyCatTransport) Send(stream pb.RaftTransportService_SendServer) error
 			return err
 		}
 
-		backend, ok := t.raftBackends[request.Message.To]
-		if ok {
-			// invoke the raft state machine
-			err := backend.step(stream.Context(), *request.Message)
-			if err == nil {
-				stream.Send(&pb.SendResp{Error: pb.NoError})
-			} else {
-				t.logger.Errorf("Invoking raft backend with id [%d] failed: %s", request.Message.To, err.Error())
-				stream.Send(&pb.SendResp{Error: pb.NoError})
-			}
-		} else {
-			t.logger.Errorf("Can't find processor for raft id %d", request.Message.To)
+		err = t.membership.stepRaft(stream.Context(), *request.Message)
+		if err != nil {
+			t.logger.Errorf("Invoking raft backend with id [%d] failed: %s", request.Message.To, err.Error())
+			// TODO - figure out error handling
+			stream.Send(&pb.SendResp{Error: pb.NoError})
 		}
+
+		stream.Send(&pb.SendResp{Error: pb.NoError})
 	}
 }
 
-func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) {
+func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) *messageSendingResults {
+	var results *messageSendingResults
+
 	for _, msg := range msgs {
-		addr := t.membership.getAddressForRaftId(msg.To)
-		conn, err := grpc.Dial(addr, grpc.WithInsecure())
+		client, err := t.membership.getRaftTransportServiceClientForRaftId(msg.To)
 		if err != nil {
-			t.logger.Errorf("Can't create connection: %s", err.Error())
+			t.logger.Errorf("Can't create raft transport client: %s", err.Error())
+			continue
 		}
 
-		defer conn.Close()
-		client := pb.NewRaftTransportServiceClient(conn)
 		stream, err := client.Send(context.Background())
 		if err != nil {
 			t.logger.Errorf("Can't get stream: %s", err.Error())
+			continue
 		}
 
 		err = stream.Send(&pb.SendReq{Message: &msg})
 		if err != nil {
 			t.logger.Errorf("Can't send on stream: %s", err.Error())
+			results = t.addFailedMessage(results, msg)
+			continue
+		} else if isMsgSnap(msg) {
+			results = t.addSucceededSnapshotMessage(results, msg)
 		}
 
 		resp, err := stream.Recv()
 		if err != nil {
 			t.logger.Errorf("Can't contact node for message %s: %s", msg.String(), err.Error())
+			results = t.addFailedMessage(results, msg)
+			continue
 		} else if resp.Error != pb.NoError {
 			t.logger.Errorf("Error: %s", resp.Error.String())
+			results = t.addFailedMessage(results, msg)
+			continue
 		}
 
-		defer stream.CloseSend()
+		err = stream.CloseSend()
+		if err != nil {
+			t.logger.Errorf("Can't close stream: %s", err.Error())
+		}
 	}
+
+	return results
 }
 
-//////////////////////////////////////////
-////////////////////////////////
-// SECTION FOR UTILS
-
-func (t *copyCatTransport) doIHostDataStructure(dataStructureId uint64) (bool, string) {
-	addresses := t.membership.getAddressesForDataStructureId(dataStructureId)
-	if len(addresses) == 0 {
-		return false, ""
+func (t *copyCatTransport) addFailedMessage(results *messageSendingResults, msg raftpb.Message) *messageSendingResults {
+	if results == nil {
+		results = &messageSendingResults{}
 	}
 
-	for _, addr := range addresses {
-		if addr == t.myAddress {
-			return true, ""
-		}
+	results.failedMessages = append(results.failedMessages, msg)
+	return results
+}
+
+func (t *copyCatTransport) addSucceededSnapshotMessage(results *messageSendingResults, msg raftpb.Message) *messageSendingResults {
+	if results == nil {
+		results = &messageSendingResults{}
 	}
 
-	// yeah, I'm not hosting that
-	// just return a random one for now
-	return false, addresses[0]
+	results.succeededSnapshotMessages = append(results.succeededSnapshotMessages, msg)
+	return results
+}
+
+type messageSendingResults struct {
+	failedMessages            []raftpb.Message
+	succeededSnapshotMessages []raftpb.Message
 }
 
 func (t *copyCatTransport) stop() {
-	for _, rb := range t.raftBackends {
-		rb.stop()
-	}
 	t.grpcServer.Stop()
 }

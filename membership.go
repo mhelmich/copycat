@@ -43,10 +43,17 @@ const (
 // This includes the presence of nodes in the cluster, the raft groups in the cluster and their location,
 // the data structures in the cluster and their location.
 type membership struct {
-	serf *serf.Serf
+	serfNodeId uint64
+	serf       *serf.Serf
+	// this mutex protects concurrent access to serf tags
+	// as you can see this is not exactly a fine-grained approach
+	// if this becomes a problem, we can think about a better way to do this
+	serfTagMutex *sync.Mutex
 
 	// these maps cache the serf state locally
 	// you can always fall back to querying the cluster if you want
+	// uint64 - the id of the serf node
+	// map[string]string - all tags of a particular serf node
 	memberIdToTags           *sync.Map
 	raftIdToAddress          map[uint64]string
 	dataStructureIdToRaftIds map[uint64]map[uint64]bool
@@ -55,7 +62,7 @@ type membership struct {
 }
 
 func newMembership(config *Config) (*membership, error) {
-	serfNodeId := uint64ToString(randomRaftId())
+	serfNodeId := randomRaftId()
 	logger := config.logger.WithFields(log.Fields{
 		"component":   "serf",
 		"serf_node":   serfNodeId,
@@ -68,7 +75,7 @@ func newMembership(config *Config) (*membership, error) {
 	// which means we're not up to date with the current cluster state anymore
 	serfEventCh := make(chan serf.Event, 32)
 	serfConfig.EventCh = serfEventCh
-	serfConfig.NodeName = serfNodeId
+	serfConfig.NodeName = uint64ToString(serfNodeId)
 	serfConfig.EnableNameConflictResolution = true
 	serfConfig.MemberlistConfig.BindAddr = config.hostname
 	serfConfig.MemberlistConfig.BindPort = config.GossipPort
@@ -105,7 +112,9 @@ func newMembership(config *Config) (*membership, error) {
 	}
 
 	m := &membership{
+		serfNodeId:               serfNodeId,
 		serf:                     surf,
+		serfTagMutex:             &sync.Mutex{},
 		memberIdToTags:           &sync.Map{},
 		raftIdToAddress:          make(map[uint64]string),
 		dataStructureIdToRaftIds: make(map[uint64]map[uint64]bool),
@@ -138,12 +147,16 @@ func (m *membership) handleSerfEvents(serfEventChannel <-chan serf.Event) {
 				m.handleQuery((serfEvent).(*serf.Query))
 			}
 		case <-m.serf.ShutdownCh():
+			m.logger.Error("Shutting down serf event loop")
 			return
 		}
 	}
 }
 
 func (m *membership) handleMemberJoinEvent(me serf.MemberEvent) {
+	m.serfTagMutex.Lock()
+	defer m.serfTagMutex.Unlock()
+
 	for _, mem := range me.Members {
 		hostedItems := mem.Tags[serfMDKeyHostedItems]
 		hi := &pb.HostedItems{}
@@ -173,6 +186,9 @@ func (m *membership) handleMemberUpdatedEvent(me serf.MemberEvent) {
 }
 
 func (m *membership) handleMemberLeaveEvent(me serf.MemberEvent) {
+	m.serfTagMutex.Lock()
+	defer m.serfTagMutex.Unlock()
+
 	for _, mem := range me.Members {
 		hostedItems := mem.Tags[serfMDKeyHostedItems]
 		hi := &pb.HostedItems{}
@@ -186,6 +202,7 @@ func (m *membership) handleMemberLeaveEvent(me serf.MemberEvent) {
 
 		for dsId, raftId := range hi.DataStructureToRaftMapping {
 			delete(m.raftIdToAddress, raftId)
+			m.logger.Infof("Deleted %d", raftId)
 			delete(m.dataStructureIdToRaftIds[dsId], raftId)
 		}
 	}
@@ -247,13 +264,14 @@ func (m *membership) handleDataStructureIdQuery(query *serf.Query) ([]byte, erro
 		return nil, err
 	}
 
-	addresses := m.getAddressesForDataStructureId(req.DataStructureId)
-	if addresses == nil || len(addresses) == 0 {
+	peers := m.peersForDataStructureId(req.DataStructureId)
+	if peers == nil || len(peers) == 0 {
 		return nil, fmt.Errorf("I don't know about data structure id [%d] myself", req.DataStructureId)
 	}
 
 	resp := &pb.DataStructureIdResponse{
-		Address: addresses[0],
+		RaftId:  peers[0].Id,
+		Address: peers[0].RaftAddress,
 	}
 
 	m.logger.Infof("Sending response: %s", resp.String())
@@ -261,12 +279,11 @@ func (m *membership) handleDataStructureIdQuery(query *serf.Query) ([]byte, erro
 }
 
 func (m *membership) addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error {
-	tags := m.serf.LocalMember().Tags
-	hostedItems := tags[serfMDKeyHostedItems]
-	hi := &pb.HostedItems{}
-	err := proto.UnmarshalText(hostedItems, hi)
+	m.serfTagMutex.Lock()
+	defer m.serfTagMutex.Unlock()
+
+	hi, err := m.getMyHostedItems()
 	if err != nil {
-		m.logger.Errorf("Can't unmarshall hosted items: %s", err.Error())
 		return err
 	}
 
@@ -277,12 +294,58 @@ func (m *membership) addDataStructureToRaftIdMapping(dataStructureId uint64, raf
 
 	hi.DataStructureToRaftMapping[dataStructureId] = raftId
 
-	setMe := make(map[string]string)
-	setMe[serfMDKeyHostedItems] = proto.MarshalTextString(hi)
 	// this will update the nodes metadata and broadcast it out
 	// blocks until broadcasting was successful or timed out
 	// this update will be processed via the regular membership event processing
-	return m.serf.SetTags(setMe)
+	return m.updateTags(serfMDKeyHostedItems, proto.MarshalTextString(hi))
+}
+
+func (m *membership) removeDataStructureToRaftIdMapping(raftId uint64) error {
+	m.serfTagMutex.Lock()
+	defer m.serfTagMutex.Unlock()
+
+	hi, err := m.getMyHostedItems()
+	if err != nil {
+		return err
+	}
+
+	if hi.DataStructureToRaftMapping == nil {
+		return nil
+	}
+
+	var dataStructureIdToDelete uint64
+	for dsId, rId := range hi.DataStructureToRaftMapping {
+		if rId == raftId {
+			dataStructureIdToDelete = dsId
+			break
+		}
+	}
+	delete(hi.DataStructureToRaftMapping, dataStructureIdToDelete)
+
+	// this will update the nodes metadata and broadcast it out
+	// blocks until broadcasting was successful or timed out
+	// this update will be processed via the regular membership event processing
+	return m.updateTags(serfMDKeyHostedItems, proto.MarshalTextString(hi))
+}
+
+func (m *membership) updateTags(key string, value string) error {
+	t := m.serf.LocalMember().Tags
+	t[key] = value
+	return m.serf.SetTags(t)
+}
+
+func (m *membership) getMyHostedItems() (*pb.HostedItems, error) {
+	tags := m.serf.LocalMember().Tags
+	hostedItems := tags[serfMDKeyHostedItems]
+	hi := &pb.HostedItems{}
+	err := proto.UnmarshalText(hostedItems, hi)
+	if err != nil {
+		err = fmt.Errorf("Can't unmarshall hosted items: %s", err.Error())
+		m.logger.Errorf("%s", err.Error())
+		return nil, err
+	}
+
+	return hi, nil
 }
 
 func (m *membership) findDataStructureWithId(id uint64) (*pb.Peer, error) {
@@ -324,26 +387,10 @@ func (m *membership) findDataStructureWithId(id uint64) (*pb.Peer, error) {
 	}
 }
 
-func (m *membership) getAddressesForDataStructureId(dataStructureId uint64) []string {
-	raftIdsMap, ok := m.dataStructureIdToRaftIds[dataStructureId]
-	if !ok {
-		m.logger.Infof("I don't know data structure with id [%d]", dataStructureId)
-		return make([]string, 0)
-	}
-
-	addrs := make([]string, len(raftIdsMap))
-	i := 0
-	for raftId := range raftIdsMap {
-		addr, ok := m.raftIdToAddress[raftId]
-		if ok {
-			addrs[i] = addr
-			i++
-		}
-	}
-	return addrs[:i]
-}
-
 func (m *membership) getAddressForRaftId(raftId uint64) string {
+	m.serfTagMutex.Lock()
+	defer m.serfTagMutex.Unlock()
+
 	return m.raftIdToAddress[raftId]
 }
 
@@ -382,11 +429,11 @@ func (m *membership) onePeerForDataStructureId(dataStructureId uint64) (*pb.Peer
 
 	// cache hit!
 	for raftId := range raftIdsMap {
-		addr, ok := m.raftIdToAddress[raftId]
+		v, ok := m.raftIdToAddress[raftId]
 		if ok {
 			return &pb.Peer{
 				Id:          raftId,
-				RaftAddress: addr,
+				RaftAddress: v,
 			}, nil
 		}
 	}
@@ -404,11 +451,11 @@ func (m *membership) peersForDataStructureId(dataStructureId uint64) []pb.Peer {
 	peers := make([]pb.Peer, len(raftIdsMap))
 	i := 0
 	for raftId := range raftIdsMap {
-		addr, ok := m.raftIdToAddress[raftId]
+		v, ok := m.raftIdToAddress[raftId]
 		if ok {
 			peers[i] = pb.Peer{
 				Id:          raftId,
-				RaftAddress: addr,
+				RaftAddress: v,
 			}
 			i++
 		}
@@ -416,18 +463,8 @@ func (m *membership) peersForDataStructureId(dataStructureId uint64) []pb.Peer {
 	return peers[:i]
 }
 
-// making a defensive copy of this map to prevent a data race
-// TODO: think about how to make this better
-// either pass out the sync.Map or a channel iterating through the map
-func (m *membership) getAllMetadata() map[uint64]map[string]string {
-	returnMe := make(map[uint64]map[string]string)
-
-	m.memberIdToTags.Range(func(key interface{}, value interface{}) bool {
-		returnMe[key.(uint64)] = value.(map[string]string)
-		return true
-	})
-
-	return returnMe
+func (m *membership) myGossipNodeId() uint64 {
+	return m.serfNodeId
 }
 
 func (m *membership) pickFromMetadata(picker func(peerId uint64, tags map[string]string) bool, numItemsToPick int) []uint64 {
@@ -452,6 +489,7 @@ func (m *membership) pickFromMetadata(picker func(peerId uint64, tags map[string
 }
 
 func (m *membership) stop() error {
+	m.logger.Warn("Shutting down serf!")
 	err := m.serf.Leave()
 	if err != nil {
 		m.logger.Errorf("Error leaving serf cluster: %s", err.Error())

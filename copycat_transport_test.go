@@ -18,14 +18,16 @@ package copycat
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
-	"sync"
 	"testing"
 
-	"github.com/coreos/etcd/raft/raftpb"
 	"github.com/mhelmich/copycat/pb"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+
+	"github.com/coreos/etcd/raft/raftpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -36,15 +38,7 @@ func TestTransportBasic(t *testing.T) {
 	err := os.MkdirAll(config.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 
-	m := &membership{
-		memberIdToTags:           &sync.Map{},
-		raftIdToAddress:          make(map[uint64]string),
-		dataStructureIdToRaftIds: make(map[uint64]map[uint64]bool),
-		logger: log.WithFields(log.Fields{
-			"test": "TestTransportBasic",
-		}),
-	}
-
+	m := new(mockMembershipProxy)
 	transport, err := newTransport(config, m)
 	assert.Nil(t, err)
 
@@ -54,18 +48,14 @@ func TestTransportBasic(t *testing.T) {
 }
 
 func TestTransportSendReceiveMessages(t *testing.T) {
-	m := &membership{
-		memberIdToTags:           &sync.Map{},
-		raftIdToAddress:          make(map[uint64]string),
-		dataStructureIdToRaftIds: make(map[uint64]map[uint64]bool),
-		logger: log.WithFields(log.Fields{
-			"test": "TestTransportSendReceiveMessages",
-		}),
-	}
+	// create the mock here
+	// mock out the methods later
+	// there's a chicken and egg problem where I need the proxy
+	m := new(mockMembershipProxy)
 
 	config1 := DefaultConfig()
 	config1.CopyCatPort += 10000
-	config1.logger = m.logger
+	config1.logger = log.WithFields(log.Fields{})
 	config1.CopyCatDataDir = "./test-TestTransportSendReceiveMessages-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
@@ -74,7 +64,7 @@ func TestTransportSendReceiveMessages(t *testing.T) {
 
 	config2 := DefaultConfig()
 	config2.CopyCatPort = config1.CopyCatPort + 10000
-	config1.logger = m.logger
+	config1.logger = log.WithFields(log.Fields{})
 	config2.CopyCatDataDir = "./test-TestTransportSendReceiveMessages-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
@@ -87,15 +77,19 @@ func TestTransportSendReceiveMessages(t *testing.T) {
 		To:    raftId,
 		Index: uint64(999),
 	}
-	m.raftIdToAddress[raftId] = receiver.config.hostname + ":" + strconv.Itoa(receiver.config.CopyCatPort)
-	mockBackend := new(mockRaftBackend)
-	mockBackend.On("step", mock.MatchedBy(func(ctx context.Context) bool { return true }), msgs[0]).Return(nil)
-	mockBackend.On("stop").Return()
-	receiver.raftBackends[raftId] = mockBackend
+
+	conn, err := grpc.Dial("127.0.0.1:"+strconv.Itoa(config2.CopyCatPort), grpc.WithInsecure())
+	assert.Nil(t, err)
+	client := pb.NewRaftTransportServiceClient(conn)
+
+	m.On("getRaftTransportServiceClientForRaftId", mock.Anything).Return(client, nil)
+	m.On("stepRaft", mock.Anything, mock.Anything).Return(nil)
 
 	// run test
-	sender.sendMessages(msgs)
-	mockBackend.AssertNumberOfCalls(t, "step", 1)
+	sendingResults := sender.sendMessages(msgs)
+	assert.Nil(t, sendingResults)
+	m.AssertNumberOfCalls(t, "getRaftTransportServiceClientForRaftId", 1)
+	m.AssertNumberOfCalls(t, "stepRaft", 1)
 
 	sender.stop()
 	receiver.stop()
@@ -105,28 +99,73 @@ func TestTransportSendReceiveMessages(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestTransportReportFailures(t *testing.T) {
+	failedMessage := uint64(99)
+	snapMessage := uint64(88)
+	succeededNonSnapMessage := uint64(111)
+
+	mockStream := new(mockRaftTransportService_SendClient)
+	// fails for all nodes to failed message
+	mockStream.On("Send", mock.MatchedBy(func(req *pb.SendReq) bool { return req.Message.To == failedMessage })).Return(fmt.Errorf("BOOOM!"))
+	// succeeds and hence needs all subsequent calls as well
+	mockStream.On("Send", mock.MatchedBy(func(req *pb.SendReq) bool { return req.Message.To == snapMessage })).Return(nil)
+	mockStream.On("Send", mock.MatchedBy(func(req *pb.SendReq) bool { return req.Message.To == succeededNonSnapMessage })).Return(nil)
+	mockStream.On("Recv").Return(&pb.SendResp{Error: pb.NoError}, nil)
+	mockStream.On("CloseSend").Return(nil)
+
+	mockClient := new(mockRaftTransportServiceClient)
+	mockClient.On("Send", mock.Anything).Return(mockStream, nil)
+	mockMemberProxy := new(mockMembershipProxy)
+	mockMemberProxy.On("getRaftTransportServiceClientForRaftId", mock.Anything).Return(mockClient, nil)
+
+	transport := &copyCatTransport{
+		membership: mockMemberProxy,
+		logger:     log.WithFields(log.Fields{}),
+	}
+
+	msgs := make([]raftpb.Message, 2)
+	msgs[0] = raftpb.Message{
+		To: failedMessage,
+	}
+	msgs[1] = raftpb.Message{
+		To:   snapMessage,
+		Type: raftpb.MsgSnap,
+	}
+	results := transport.sendMessages(msgs)
+	assert.NotNil(t, results)
+	assert.Equal(t, failedMessage, results.failedMessages[0].To)
+	assert.Equal(t, snapMessage, results.succeededSnapshotMessages[0].To)
+
+	msgs = make([]raftpb.Message, 1)
+	msgs[0] = raftpb.Message{
+		To: succeededNonSnapMessage,
+	}
+	results = transport.sendMessages(msgs)
+	assert.Nil(t, results)
+}
+
 func TestTransportStartStopRaft(t *testing.T) {
+	// create the mock here
+	// mock out the methods later
+	// there's a chicken and egg problem where I need the proxy
+	m := new(mockMembershipProxy)
+	m.On("newDetachedRaftBackend", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	m.On("stopRaft", mock.Anything).Return(nil)
+
 	config := DefaultConfig()
 	config.CopyCatDataDir = "./test-TestTransportStartStopRaft-" + uint64ToString(randomRaftId()) + "/"
 
 	mockTransport := new(mockRaftTransport)
-	mockTransport.On("sendMessages", mock.Anything).Return()
 	config.raftTransport = mockTransport
 
 	mockBackend := new(mockRaftBackend)
 	mockBackend.On("step", mock.Anything, mock.Anything).Return(nil)
 	mockBackend.On("stop").Return()
 
-	mockMembership := new(mockTransportMembership)
-	mockMembership.On("addDataStructureToRaftIdMapping", mock.Anything, mock.Anything).Return(nil)
-
 	transport := &copyCatTransport{
-		config:       config,
-		raftBackends: make(map[uint64]transportRaftBackend),
-		membership:   mockMembership,
-		newRaftBackendFunc: func(uint64, *Config) (transportRaftBackend, error) {
-			return mockBackend, nil
-		},
+		config:     config,
+		membership: m,
+		myAddress:  config.hostname + ":" + strconv.Itoa(config.CopyCatPort),
 		logger: log.WithFields(log.Fields{
 			"test": "TestTransportStartStopRaft",
 		}),
@@ -137,17 +176,13 @@ func TestTransportStartStopRaft(t *testing.T) {
 	assert.NotNil(t, respStart.RaftId)
 	assert.NotNil(t, respStart.RaftAddress)
 	assert.Equal(t, config.hostname+":"+strconv.Itoa(config.CopyCatPort), respStart.RaftAddress)
-	rb, ok := transport.raftBackends[respStart.RaftId]
-	assert.NotNil(t, rb)
-	assert.True(t, ok)
 
 	respStop, err := transport.StopRaft(context.TODO(), &pb.StopRaftRequest{RaftId: respStart.RaftId})
 	assert.Nil(t, err)
 	assert.NotNil(t, respStop)
 
-	mockBackend.AssertNumberOfCalls(t, "step", 0)
-	mockBackend.AssertNumberOfCalls(t, "stop", 1)
-	mockMembership.AssertNumberOfCalls(t, "addDataStructureToRaftIdMapping", 1)
+	m.AssertNumberOfCalls(t, "newDetachedRaftBackend", 1)
+	m.AssertNumberOfCalls(t, "stopRaft", 1)
 	err = os.RemoveAll(config.CopyCatDataDir)
 	assert.Nil(t, err)
 }

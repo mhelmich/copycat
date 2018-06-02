@@ -18,7 +18,6 @@ package copycat
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	"github.com/coreos/etcd/raft"
@@ -76,7 +75,7 @@ func newInteractiveRaftBackend(config *Config, peers []pb.Peer, provider Snapsho
 	// adding myself to the list of peers
 	peers = append(peers, pb.Peer{
 		Id:          newRaftId,
-		RaftAddress: config.hostname + ":" + strconv.Itoa(config.CopyCatPort),
+		RaftAddress: config.address(),
 	})
 
 	return _newRaftBackend(newRaftId, config, peers, provider, true)
@@ -264,9 +263,22 @@ func (rb *raftBackend) procesReady(rd raft.Ready) bool {
 		rb.publishSnapshot(rd.Snapshot)
 	}
 
-	// TODO - find a good way to report the success of a snapshot message
-	// back to raft
-	rb.transport.sendMessages(rd.Messages)
+	sendingErrors := rb.transport.sendMessages(rd.Messages)
+	if sendingErrors != nil {
+		for _, failedMsg := range sendingErrors.failedMessages {
+			rb.logger.Errorf("Reporting raft [%d] unreachable", failedMsg.To)
+			rb.raftNode.ReportUnreachable(failedMsg.To)
+			if isMsgSnap(failedMsg) {
+				rb.logger.Errorf("Reporting snapshot failure for raft [%d]", failedMsg.To)
+				rb.raftNode.ReportSnapshot(failedMsg.To, raft.SnapshotFailure)
+			}
+		}
+
+		for _, snapMsg := range sendingErrors.succeededSnapshotMessages {
+			rb.raftNode.ReportSnapshot(snapMsg.To, raft.SnapshotFinish)
+		}
+	}
+
 	if ok := rb.publishEntries(rb.entriesToApply(rd.CommittedEntries)); !ok {
 		return false
 	}

@@ -17,103 +17,60 @@
 package copycat
 
 import (
-	"context"
-	"fmt"
-	"strconv"
-	"sync"
-	"time"
-
-	"github.com/mhelmich/copycat/pb"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 )
 
 type copyCatImpl struct {
 	transport  *copyCatTransport
-	membership copyCatMembership
+	membership membershipProxy
 	// this nodes CopyCay address in order to localize requests
-	myAddress                     string
-	addressToConnection           *sync.Map
-	newCopyCatClientFunc          func(*sync.Map, string) (pb.CopyCatServiceClient, error)
-	newInteractiveRaftBackendFunc func(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error)
-	config                        *Config
-	logger                        *log.Entry
+	myAddress string
+	config    *Config
+	logger    *log.Entry
 }
 
 func newCopyCat(config *Config) (*copyCatImpl, error) {
-	m, err := newMembership(config)
+	cache, err := newMembershipCache(config)
 	if err != nil {
 		config.logger.Errorf("Can't create membership: %s", err.Error())
 		return nil, err
 	}
 
-	t, err := newTransport(config, m)
+	t, err := newTransport(config, cache)
 	if err != nil {
 		config.logger.Errorf("Can't create transport: %s", err.Error())
 		return nil, err
 	}
 
 	// HACK
-	// this will be used at raft backend creation
+	// this will be used in raft backends
 	config.raftTransport = t
 	return &copyCatImpl{
-		transport:                     t,
-		membership:                    m,
-		myAddress:                     config.hostname + ":" + strconv.Itoa(config.CopyCatPort),
-		addressToConnection:           &sync.Map{},
-		newCopyCatClientFunc:          _newCopyCatServiceClient,
-		newInteractiveRaftBackendFunc: _newInteractiveRaftBackend,
-		config: config,
-		logger: config.logger,
+		transport:  t,
+		membership: cache,
+		myAddress:  config.address(),
+		config:     config,
+		logger:     config.logger,
 	}, nil
 }
 
-func _newCopyCatServiceClient(m *sync.Map, address string) (pb.CopyCatServiceClient, error) {
-	var conn *grpc.ClientConn
-	var err error
-	var val interface{}
-	var ok bool
-	var loaded bool
-
-	val, ok = m.Load(address)
-	if !ok {
-		conn, err = grpc.Dial(address, grpc.WithInsecure())
-		if err != nil {
-			return nil, err
-		}
-
-		val, loaded = m.LoadOrStore(address, conn)
-		if loaded {
-			// somebody else stored the connection already
-			// all of this was for nothing
-			defer conn.Close()
-		}
-	}
-
-	conn = val.(*grpc.ClientConn)
-	return pb.NewCopyCatServiceClient(conn), nil
-}
-
-func _newInteractiveRaftBackend(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
-	return newInteractiveRaftBackend(config, peers, provider)
-}
-
 // takes one operation, finds the leader remotely, and sends the operation to the leader
-func (c *copyCatImpl) ConnectToDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer) {
+func (c *copyCatImpl) ConnectToDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error) {
 	var interactiveBackend *raftBackend
 	var err error
 
 	peers := c.membership.peersForDataStructureId(id)
 	if len(peers) > 0 {
-		interactiveBackend, err = c.createLocalRaft(id, peers, provider)
+		interactiveBackend, err = c.membership.newInteractiveRaftBackend(id, c.config, peers, provider)
 	} else {
-		interactiveBackend, err = c.startNewRaftGroup(id, 3, provider)
+		interactiveBackend, err = c.startNewRaftGroup(id, 1, provider)
 	}
 
 	if err != nil {
 		c.logger.Errorf("Can't connect to data structure: %s", err.Error())
+		return nil, nil, nil, nil, err
 	}
-	return interactiveBackend.proposeChan, interactiveBackend.commitChan, interactiveBackend.errorChan, func() ([]byte, error) { return interactiveBackend.snapshot() }
+	return interactiveBackend.proposeChan, interactiveBackend.commitChan, interactiveBackend.errorChan, func() ([]byte, error) { return interactiveBackend.snapshot() }, nil
 }
 
 // takes a data strucutre id, has this node join the raft group, finds the leader of the raft group, and tries to transfer leadership to this node
@@ -127,12 +84,13 @@ func (c *copyCatImpl) SubscribeToDataStructure(id uint64, provider SnapshotProvi
 }
 
 func (c *copyCatImpl) startNewRaftGroup(dataStructureId uint64, numReplicas int, provider SnapshotProvider) (*raftBackend, error) {
-	remoteRafts, err := c.choosePeersForNewDataStructure(dataStructureId, c.membership.getAllMetadata(), numReplicas)
+	c.logger.Infof("Starting a new raft group around data structure with id [%d] and [%d] replicas", dataStructureId, numReplicas)
+	remoteRafts, err := c.membership.chooseReplicaNode(dataStructureId, numReplicas)
 	if err != nil {
 		return nil, err
 	}
 
-	localRaft, err := c.createLocalRaft(dataStructureId, remoteRafts, provider)
+	localRaft, err := c.membership.newInteractiveRaftBackend(dataStructureId, c.config, remoteRafts, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -140,139 +98,12 @@ func (c *copyCatImpl) startNewRaftGroup(dataStructureId uint64, numReplicas int,
 	return localRaft, nil
 }
 
-func (c *copyCatImpl) choosePeersForNewDataStructure(dataStructureId uint64, peersMetadata map[uint64]map[string]string, numPeers int) ([]pb.Peer, error) {
-	if len(peersMetadata) <= 0 {
-		return nil, fmt.Errorf("No peers to contact!")
-	}
-
-	newPeers := make([]pb.Peer, numPeers)
-	// HACK
-	idxOfPeerToContact := 0
-	ch := make(chan *pb.Peer)
-
-	// Iterate through the map and unfortunately I need to keep track of the index into the map!?!?
-	// Yes, I know: maps - ordering of iteration!?!?! Yeah...not great but practical :p
-	// There's no underlying weird reason I do this other than laziness.
-	for _, tags := range peersMetadata {
-		if idxOfPeerToContact >= numPeers {
-			break
-		}
-
-		// fire off remote raft creation
-		localTags := tags
-		go c.startRaftRemotely(ch, dataStructureId, localTags)
-		idxOfPeerToContact++
-	}
-
-	// HACK
-	timeout := time.Now().Add(5 * time.Second)
-	j := 0
-
-	for {
-		select {
-		case peer := <-ch:
-			if peer == nil {
-
-				// I got an empty response from one of the peers I contacted,
-				// let me try another one...
-				if idxOfPeerToContact >= len(peersMetadata) {
-					return nil, fmt.Errorf("No more peers to contact")
-				}
-
-				count := 0
-				for _, tags := range peersMetadata {
-					if count == idxOfPeerToContact {
-						go c.startRaftRemotely(ch, dataStructureId, tags)
-						break
-					}
-					count++
-				}
-
-			} else {
-
-				// if I got a valid response, put it in the array
-				newPeers[j] = *peer
-				j++
-				if j >= numPeers {
-					return newPeers, nil
-				}
-
-			}
-		case <-time.After(time.Until(timeout)):
-			// close all started rafts
-			for _, p := range newPeers {
-				go c.stopRaftRemotely(p)
-			}
-			return nil, fmt.Errorf("Couldn't find enough remote peers for raft creation and timed out")
-		}
-	}
-}
-
-func (c *copyCatImpl) startRaftRemotely(peerCh chan *pb.Peer, dataStructureId uint64, tags map[string]string) {
-	addr := c.membership.getAddr(tags)
-	if c.myAddress == addr {
-		// signal to the listener that we need to retry another peer
-		peerCh <- nil
-		return
-	}
-
-	client, err := c.newCopyCatClientFunc(c.addressToConnection, addr)
-	if err != nil {
-		c.logger.Errorf("Can't connect to %s: %s", addr, err.Error())
-		peerCh <- nil
-		return
-	}
-
-	resp, err := client.StartRaft(context.TODO(), &pb.StartRaftRequest{DataStructureId: dataStructureId})
-	if err != nil {
-		c.logger.Errorf("Can't start a raft at %s: %s", addr, err.Error())
-		// signal to the listener that we need to retry another peer
-		peerCh <- nil
-		return
-	}
-
-	c.logger.Infof("Started raft remotely on %s: %s", addr, resp.String())
-	peerCh <- &pb.Peer{
-		Id:          resp.RaftId,
-		RaftAddress: resp.RaftAddress,
-	}
-}
-
-func (c *copyCatImpl) stopRaftRemotely(peer pb.Peer) error {
-	if peer.RaftAddress == "" {
-		return nil
-	}
-
-	client, err := c.newCopyCatClientFunc(c.addressToConnection, peer.RaftAddress)
-	if err != nil {
-		return err
-	}
-
-	_, err = client.StopRaft(context.TODO(), &pb.StopRaftRequest{RaftId: peer.Id})
-	return err
-}
-
-func (c *copyCatImpl) createLocalRaft(dataStructureId uint64, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
-	backend, err := c.newInteractiveRaftBackendFunc(c.config, peers, provider)
-	if err != nil {
-		return nil, err
-	}
-
-	c.membership.addDataStructureToRaftIdMapping(dataStructureId, backend.raftId)
-	return backend, nil
-}
-
 func (c *copyCatImpl) Shutdown() {
+	c.logger.Warn("Shutting down CopyCat!")
 	err := c.membership.stop()
 	if err != nil {
 		c.logger.Errorf("Error stopping membership: %s", err.Error())
 	}
-
-	c.addressToConnection.Range(func(_, value interface{}) bool {
-		conn := value.(*grpc.ClientConn)
-		defer conn.Close()
-		return true
-	})
 
 	c.transport.stop()
 }
