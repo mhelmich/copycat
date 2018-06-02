@@ -23,7 +23,6 @@ import (
 	"strconv"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/coreos/etcd/raft"
 	"github.com/coreos/etcd/raft/raftpb"
@@ -86,14 +85,14 @@ func TestRaftBackendBasic(t *testing.T) {
 	assert.Nil(t, err)
 	fakeTransport.add(interactiveBackend)
 	assert.NotNil(t, interactiveBackend)
-	consumeAndPrintEvents(interactiveBackend)
 	assert.NotNil(t, interactiveBackend.raftNode)
 
 	interactiveBackend.proposeChan <- []byte("hello")
+	bites := <-interactiveBackend.commitChan
+	assert.Equal(t, []byte("hello"), bites)
 	interactiveBackend.proposeChan <- []byte("world")
-
-	// not waiting for anything in particular
-	time.Sleep(1 * time.Second)
+	bites = <-interactiveBackend.commitChan
+	assert.Equal(t, []byte("world"), bites)
 
 	detachedBackend1.stop()
 	detachedBackend2.stop()
@@ -106,6 +105,9 @@ func TestRaftBackendBasic(t *testing.T) {
 	err = os.RemoveAll(config3.CopyCatDataDir)
 	assert.Nil(t, err)
 }
+
+// TODO
+func TestRaftBackendAddNewRaftToExistingGroup(t *testing.T) {}
 
 func TestTriggerSnapshot(t *testing.T) {
 	dir := "./test-TestTriggerSnapshot-" + uint64ToString(randomRaftId()) + "/"
@@ -197,27 +199,6 @@ func TestPublishSnaphot(t *testing.T) {
 
 	store.close()
 	os.RemoveAll(dir)
-}
-
-func consumeAndPrintEvents(rb *raftBackend) {
-	if rb.isInteractive {
-		go func() {
-			for {
-				select {
-				case c, ok := <-rb.commitChan:
-					if !ok {
-						return
-					}
-					log.Debugf("Committed %v", c)
-				case e, ok := <-rb.errorChan:
-					if !ok {
-						return
-					}
-					log.Debugf("Error %v", e)
-				}
-			}
-		}()
-	}
 }
 
 func newFakeTransport() *fakeTransport {

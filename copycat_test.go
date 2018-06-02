@@ -20,7 +20,6 @@ import (
 	"os"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -62,10 +61,29 @@ func TestCopyCatNewDataStructure(t *testing.T) {
 	cc2, err := newCopyCat(config2)
 	assert.Nil(t, err)
 
-	_, _, _, _, err = cc1.ConnectToDataStructure(newDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
+	proposeChan1, commitChan1, _, _, err := cc1.ConnectToDataStructure(newDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
-	// HACK
-	time.Sleep(3 * time.Second)
+
+	proposeChan1 <- []byte("hello_world")
+	bites := <-commitChan1
+	assert.Equal(t, "hello_world", string(bites))
+
+	config3 := DefaultConfig()
+	config3.hostname = "127.0.0.1"
+	config3.CopyCatDataDir = "./test-TestCopyCatNewDataStructure-" + uint64ToString(randomRaftId()) + "/"
+	config3.GossipPort = config2.GossipPort + 1111
+	config3.CopyCatPort = config2.CopyCatPort + 1111
+	config3.PeersToContact = make([]string, 1)
+	config3.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.GossipPort)
+	err = os.MkdirAll(config3.CopyCatDataDir, os.ModePerm)
+	assert.Nil(t, err)
+	cc3, err := newCopyCat(config3)
+	assert.Nil(t, err)
+
+	_, commitChan3, _, _, err := cc3.ConnectToDataStructure(newDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
+	assert.Nil(t, err)
+	bites = <-commitChan3
+	assert.Equal(t, "hello_world", string(bites))
 
 	cc1.Shutdown()
 	err = os.RemoveAll(config1.CopyCatDataDir)

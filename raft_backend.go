@@ -18,6 +18,7 @@ package copycat
 
 import (
 	"context"
+	"encoding/hex"
 	"time"
 
 	"github.com/coreos/etcd/raft"
@@ -89,6 +90,7 @@ func _newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider
 	logger := config.logger.WithFields(log.Fields{
 		"component": "raftBackend",
 		"raftId":    uint64ToString(newRaftId),
+		"raftIdHex": hex.EncodeToString(uint64ToBytes(newRaftId)),
 	})
 
 	storeDir := config.CopyCatDataDir + "raft-" + uint64ToString(newRaftId) + "/"
@@ -251,7 +253,7 @@ func (rb *raftBackend) runRaftStateMachine() {
 // store raft entries and hard state, then publish changes over commit channel
 // Returning false will stop the raft state machine!
 func (rb *raftBackend) procesReady(rd raft.Ready) bool {
-	rb.logger.Debugf("ID: %d Hardstate: %v Entries: %v Snapshot: %v Messages: %v Committed: %v", rb.raftId, rd.HardState, rd.Entries, rd.Snapshot, rd.Messages, rd.CommittedEntries)
+	rb.logger.Debugf("ID: %d %x Hardstate: %v Entries: %v Snapshot: %v Messages: %v Committed: %v", rb.raftId, rb.raftId, rd.HardState, rd.Entries, rd.Snapshot, rd.Messages, rd.CommittedEntries)
 	rb.store.saveEntriesAndState(rd.Entries, rd.HardState)
 
 	if !raft.IsEmptySnap(rd.Snapshot) {
@@ -398,6 +400,7 @@ func (rb *raftBackend) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry
 }
 
 func (rb *raftBackend) publishEntries(ents []raftpb.Entry) bool {
+	rb.logger.Debugf("Num entries to publish: %d", len(ents))
 	for idx := range ents {
 		switch ents[idx].Type {
 		case raftpb.EntryNormal:
@@ -405,6 +408,7 @@ func (rb *raftBackend) publishEntries(ents []raftpb.Entry) bool {
 				// ignore empty messages
 				select {
 				case rb.commitChan <- ents[idx].Data:
+					rb.logger.Debugf("Publishing entry with size %d to %v", len(ents[idx].Data), rb.commitChan)
 				case <-rb.stopChan:
 					return false
 				}
