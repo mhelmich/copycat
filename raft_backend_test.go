@@ -87,12 +87,14 @@ func TestRaftBackendBasic(t *testing.T) {
 	assert.NotNil(t, interactiveBackend)
 	assert.NotNil(t, interactiveBackend.raftNode)
 
-	interactiveBackend.proposeChan <- []byte("hello")
+	hello := []byte("hello")
+	world := []byte("world")
+	interactiveBackend.proposeChan <- hello
 	bites := <-interactiveBackend.commitChan
-	assert.Equal(t, []byte("hello"), bites)
-	interactiveBackend.proposeChan <- []byte("world")
+	assert.Equal(t, hello, bites)
+	interactiveBackend.proposeChan <- world
 	bites = <-interactiveBackend.commitChan
-	assert.Equal(t, []byte("world"), bites)
+	assert.Equal(t, world, bites)
 
 	detachedBackend1.stop()
 	detachedBackend2.stop()
