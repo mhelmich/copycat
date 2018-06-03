@@ -51,6 +51,8 @@ type raftBackend struct {
 	errorChan chan error
 	// this object describes the topology of the raft group this backend is part of
 	confState raftpb.ConfState
+	// Keeps track of the latest config change id. The next id is this id + 1.
+	latestConfChangeId uint64
 	// An interactive raft backend returns proposal and commit channels.
 	// It listens to them or writes to them respectively.
 	// A detached raft backend only answers to messages it receives via the network transport.
@@ -80,6 +82,10 @@ func newInteractiveRaftBackend(config *Config, peers []pb.Peer, provider Snapsho
 	})
 
 	return _newRaftBackend(newRaftId, config, peers, provider, true)
+}
+
+func newInteractiveRaftBackendForExistingGroup(config *Config, provider SnapshotProvider) (*raftBackend, error) {
+	return _newRaftBackend(randomRaftId(), config, nil, provider, true)
 }
 
 func newDetachedRaftBackendWithId(newRaftId uint64, config *Config) (*raftBackend, error) {
@@ -162,6 +168,7 @@ func _newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider
 		snapshotProvider:        provider,
 		snapshotFrequency:       uint64(1000),
 		numberOfSnapshotsToKeep: 2,
+		latestConfChangeId:      uint64(0),
 		logger:                  logger,
 	}
 
@@ -181,8 +188,6 @@ func (rb *raftBackend) step(ctx context.Context, msg raftpb.Message) error {
 }
 
 func (rb *raftBackend) serveProposalChannels() {
-	var confChangeCount uint64 = 0
-
 	for rb.proposeChan != nil && rb.proposeConfChangeChan != nil {
 		select {
 		case prop, ok := <-rb.proposeChan:
@@ -203,9 +208,8 @@ func (rb *raftBackend) serveProposalChannels() {
 				rb.stop()
 				return
 			}
-			// TODO: find a better way to arrive at a config change number
-			confChangeCount++
-			cc.ID = confChangeCount
+			// TODO: there a data race here!!!
+			cc.ID = rb.latestConfChangeId + 1
 			err := rb.raftNode.ProposeConfChange(context.TODO(), cc)
 			if err != nil {
 				rb.logger.Errorf("Failed to propose change to raft: %s", err.Error())
@@ -420,6 +424,7 @@ func (rb *raftBackend) publishEntries(ents []raftpb.Entry) bool {
 			rb.logger.Debugf("Publishing config change: [%s]", cc.String())
 			rb.confState = *rb.raftNode.ApplyConfChange(cc)
 			rb.store.saveConfigState(rb.confState)
+			rb.latestConfChangeId = cc.ID
 			switch cc.Type {
 			// TODO: build a raft backend connection cache to the respective peers maybe?
 			case raftpb.ConfChangeRemoveNode:

@@ -108,8 +108,108 @@ func TestRaftBackendBasic(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-// TODO
-func TestRaftBackendAddNewRaftToExistingGroup(t *testing.T) {}
+func TestRaftBackendAddNewRaftToExistingGroup(t *testing.T) {
+	fakeTransport := newFakeTransport()
+
+	config1 := DefaultConfig()
+	config1.CopyCatDataDir = "./test-TestRaftBackendAddNewRaftToExistingGroup-" + uint64ToString(randomRaftId()) + "/"
+	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
+	assert.Nil(t, err)
+	config1.CopyCatPort = config1.CopyCatPort + 22222
+	config1.raftTransport = fakeTransport
+	config1.logger = log.WithFields(log.Fields{
+		"raft1": "raft1",
+	})
+	detachedBackend1, err := newDetachedRaftBackendWithId(randomRaftId(), config1)
+	assert.Nil(t, err)
+	fakeTransport.add(detachedBackend1)
+	assert.NotNil(t, detachedBackend1)
+
+	config2 := DefaultConfig()
+	config2.CopyCatDataDir = "./test-TestRaftBackendAddNewRaftToExistingGroup-" + uint64ToString(randomRaftId()) + "/"
+	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
+	assert.Nil(t, err)
+	config2.CopyCatPort = config1.CopyCatPort + 1111
+	config2.raftTransport = fakeTransport
+	config2.logger = log.WithFields(log.Fields{
+		"raft2": "raft2",
+	})
+	detachedBackend2, err := newDetachedRaftBackendWithId(randomRaftId(), config2)
+	assert.Nil(t, err)
+	fakeTransport.add(detachedBackend2)
+	assert.NotNil(t, detachedBackend2)
+
+	config3 := DefaultConfig()
+	config3.CopyCatDataDir = "./test-TestRaftBackendAddNewRaftToExistingGroup-" + uint64ToString(randomRaftId()) + "/"
+	err = os.MkdirAll(config3.CopyCatDataDir, os.ModePerm)
+	assert.Nil(t, err)
+	config3.CopyCatPort = config2.CopyCatPort + 1111
+	config3.raftTransport = fakeTransport
+	config3.logger = log.WithFields(log.Fields{
+		"raft3": "raft3",
+	})
+	peers3 := make([]pb.Peer, 2)
+	peers3[0] = pb.Peer{
+		Id:          detachedBackend1.raftId,
+		RaftAddress: config1.hostname + ":" + strconv.Itoa(config1.CopyCatPort),
+	}
+	peers3[1] = pb.Peer{
+		Id:          detachedBackend2.raftId,
+		RaftAddress: config2.hostname + ":" + strconv.Itoa(config2.CopyCatPort),
+	}
+	interactiveBackend1, err := newInteractiveRaftBackend(config3, peers3, func() ([]byte, error) { return make([]byte, 0), nil })
+	assert.Nil(t, err)
+	fakeTransport.add(interactiveBackend1)
+	assert.NotNil(t, interactiveBackend1)
+	assert.NotNil(t, interactiveBackend1.raftNode)
+
+	hello := []byte("hello")
+	world := []byte("world")
+	interactiveBackend1.proposeChan <- hello
+	bites := <-interactiveBackend1.commitChan
+	assert.Equal(t, hello, bites)
+	interactiveBackend1.proposeChan <- world
+	bites = <-interactiveBackend1.commitChan
+	assert.Equal(t, world, bites)
+
+	config4 := DefaultConfig()
+	config4.CopyCatDataDir = "./test-TestRaftBackendAddNewRaftToExistingGroup-" + uint64ToString(randomRaftId()) + "/"
+	err = os.MkdirAll(config4.CopyCatDataDir, os.ModePerm)
+	assert.Nil(t, err)
+	config4.CopyCatPort = config3.CopyCatPort + 1111
+	config4.raftTransport = fakeTransport
+	config4.logger = log.WithFields(log.Fields{
+		"raft4": "raft4",
+	})
+
+	interactiveBackend2, err := newInteractiveRaftBackendForExistingGroup(config4, func() ([]byte, error) { return make([]byte, 0), nil })
+	assert.Nil(t, err)
+	fakeTransport.add(interactiveBackend2)
+	assert.NotNil(t, interactiveBackend2)
+	assert.NotNil(t, interactiveBackend2.raftNode)
+
+	interactiveBackend1.proposeConfChangeChan <- raftpb.ConfChange{
+		Type:   raftpb.ConfChangeAddNode,
+		NodeID: interactiveBackend2.raftId,
+	}
+
+	bites = <-interactiveBackend2.commitChan
+	assert.Equal(t, hello, bites)
+	bites = <-interactiveBackend2.commitChan
+	assert.Equal(t, world, bites)
+
+	detachedBackend1.stop()
+	detachedBackend2.stop()
+	interactiveBackend1.stop()
+	interactiveBackend2.stop()
+
+	err = os.RemoveAll(config1.CopyCatDataDir)
+	assert.Nil(t, err)
+	err = os.RemoveAll(config2.CopyCatDataDir)
+	assert.Nil(t, err)
+	err = os.RemoveAll(config3.CopyCatDataDir)
+	assert.Nil(t, err)
+}
 
 func TestTriggerSnapshot(t *testing.T) {
 	dir := "./test-TestTriggerSnapshot-" + uint64ToString(randomRaftId()) + "/"
