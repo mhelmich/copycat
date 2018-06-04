@@ -413,6 +413,9 @@ func (m *membership) getAddressForPeer(peerId uint64) string {
 // What we do care about though is that if we say the data structure doesn't exist,
 // it really doesn't exist.
 func (m *membership) onePeerForDataStructureId(dataStructureId uint64) (*pb.Peer, error) {
+	m.serfTagMutex.Lock()
+	defer m.serfTagMutex.Unlock()
+
 	raftIdsMap, ok := m.dataStructureIdToRaftIds[dataStructureId]
 	// we got nothing in our local cache
 	// let's make sure the entire cluster doesn't know about this data structure
