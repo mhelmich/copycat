@@ -470,25 +470,35 @@ func (m *membership) myGossipNodeId() uint64 {
 	return m.serfNodeId
 }
 
-func (m *membership) pickFromMetadata(picker func(peerId uint64, tags map[string]string) bool, numItemsToPick int) []uint64 {
+func (m *membership) pickFromMetadata(picker func(peerId uint64, tags map[string]string) bool, numItemsToPick int, avoidMe []uint64) []uint64 {
 	pickedPeers := make([]uint64, numItemsToPick)
 	idx := 0
+
+	// cache in map for fast contains
+	misfits := make(map[uint64]bool)
+	for _, v := range avoidMe {
+		misfits[v] = false
+	}
 
 	m.memberIdToTags.Range(func(key interface{}, value interface{}) bool {
 		id := key.(uint64)
 		t := value.(map[string]string)
-		shouldPick := picker(id, t)
-		// add the peer if the picker returned true
-		if shouldPick {
-			pickedPeers[idx] = id
-			idx++
+		// if it's in the list of nodes to avoid, there's no point in running the picker
+		_, contains := misfits[id]
+		if !contains {
+			shouldPick := picker(id, t)
+			// add the peer if the picker returned true
+			if shouldPick {
+				pickedPeers[idx] = id
+				idx++
+			}
 		}
 
 		// stop iterating if the array is full
 		return idx < numItemsToPick
 	})
 
-	return pickedPeers
+	return pickedPeers[:idx]
 }
 
 func (m *membership) stop() error {

@@ -168,7 +168,7 @@ func (mc *membershipCache) chooseReplicaNode(dataStructureId uint64, numReplicas
 		return peerId != mc.membership.myGossipNodeId() && mc.chooserFunc(peerId, tags)
 	}
 
-	pickedPeerIds := mc.membership.pickFromMetadata(notMePicker, numReplicas)
+	pickedPeerIds := mc.membership.pickFromMetadata(notMePicker, numReplicas, make([]uint64, 0))
 	peerCh := make(chan *pb.Peer)
 	for _, peerId := range pickedPeerIds {
 		addr := mc.membership.getAddressForPeer(peerId)

@@ -292,6 +292,29 @@ func TestMembershipAddRemoveDataStructureToRaftIdMapping(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestMembershipPickFromMetadata(t *testing.T) {
+	picker := func(peerId uint64, tags map[string]string) bool {
+		return true
+	}
+
+	m := &membership{
+		memberIdToTags: &sync.Map{},
+	}
+
+	nodeId1 := randomRaftId()
+	nodeId2 := randomRaftId()
+	m.memberIdToTags.Store(nodeId1, make(map[string]string))
+	m.memberIdToTags.Store(nodeId2, make(map[string]string))
+
+	picked := m.pickFromMetadata(picker, 2, make([]uint64, 0))
+	assert.Equal(t, 2, len(picked))
+
+	misfits := make([]uint64, 1)
+	misfits[0] = nodeId1
+	picked = m.pickFromMetadata(picker, 2, misfits)
+	assert.Equal(t, 1, len(picked))
+}
+
 func mockTags(host string, port int, hostedItems string) map[string]string {
 	m := make(map[string]string)
 	m[serfMDKeyHost] = host

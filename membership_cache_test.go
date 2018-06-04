@@ -164,7 +164,7 @@ func TestMembershipCacheStartRaftGroup(t *testing.T) {
 	networkAddress1 := "666_Fake_Street"
 
 	mockMembership := new(mockMemberList)
-	mockMembership.On("pickFromMetadata", mock.Anything, 2).Return(pickedPeers)
+	mockMembership.On("pickFromMetadata", mock.Anything, 2, mock.Anything).Return(pickedPeers)
 	mockMembership.On("getAddressForPeer", pickedPeers[0]).Return(networkAddress1)
 	mockMembership.On("getAddressForPeer", pickedPeers[1]).Return(networkAddress0)
 

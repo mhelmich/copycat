@@ -104,13 +104,13 @@ func (_m *mockMemberList) peersForDataStructureId(dataStructureId uint64) []pb.P
 	return r0
 }
 
-// pickFromMetadata provides a mock function with given fields: picker, numItemsToPick
-func (_m *mockMemberList) pickFromMetadata(picker func(uint64, map[string]string) bool, numItemsToPick int) []uint64 {
-	ret := _m.Called(picker, numItemsToPick)
+// pickFromMetadata provides a mock function with given fields: picker, numItemsToPick, avoidMe
+func (_m *mockMemberList) pickFromMetadata(picker func(uint64, map[string]string) bool, numItemsToPick int, avoidMe []uint64) []uint64 {
+	ret := _m.Called(picker, numItemsToPick, avoidMe)
 
 	var r0 []uint64
-	if rf, ok := ret.Get(0).(func(func(uint64, map[string]string) bool, int) []uint64); ok {
-		r0 = rf(picker, numItemsToPick)
+	if rf, ok := ret.Get(0).(func(func(uint64, map[string]string) bool, int, []uint64) []uint64); ok {
+		r0 = rf(picker, numItemsToPick, avoidMe)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]uint64)

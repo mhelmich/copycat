@@ -139,7 +139,7 @@ type memberList interface {
 	addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error
 	removeDataStructureToRaftIdMapping(raftId uint64) error
 	getAddressForRaftId(raftId uint64) string
-	pickFromMetadata(picker func(peerId uint64, tags map[string]string) bool, numItemsToPick int) []uint64
+	pickFromMetadata(picker func(peerId uint64, tags map[string]string) bool, numItemsToPick int, avoidMe []uint64) []uint64
 	getAddressForPeer(peerId uint64) string
 	myGossipNodeId() uint64
 	stop() error
