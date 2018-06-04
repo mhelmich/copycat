@@ -211,7 +211,7 @@ func TestRaftBackendAddNewRaftToExistingGroup(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestTriggerSnapshot(t *testing.T) {
+func TestRaftBackendTriggerSnapshot(t *testing.T) {
 	dir := "./test-TestTriggerSnapshot-" + uint64ToString(randomRaftId()) + "/"
 	store, err := openBoltStorage(dir, log.WithFields(log.Fields{}))
 	assert.Nil(t, err)
@@ -241,7 +241,7 @@ func TestTriggerSnapshot(t *testing.T) {
 	os.RemoveAll(dir)
 }
 
-func TestPublishSnaphot(t *testing.T) {
+func TestRaftBackendPublishSnaphot(t *testing.T) {
 	dir := "./test-TestPublishSnaphot-" + uint64ToString(randomRaftId()) + "/"
 	store, err := openBoltStorage(dir, log.WithFields(log.Fields{}))
 	assert.Nil(t, err)
@@ -301,6 +301,18 @@ func TestPublishSnaphot(t *testing.T) {
 
 	store.close()
 	os.RemoveAll(dir)
+}
+
+func TestRaftBackendAddRaftToGroup(t *testing.T) {
+	node := new(mockRaftNode)
+	node.On("ProposeConfChange", mock.Anything, mock.MatchedBy(func(cc raftpb.ConfChange) bool { return cc.ID == uint64(99) && cc.NodeID == uint64(11) })).Return(nil)
+	backend := &raftBackend{
+		raftNode:           node,
+		latestConfChangeId: uint64(98),
+	}
+
+	backend.addRaftToMyGroup(context.TODO(), uint64(11))
+	node.AssertNumberOfCalls(t, "ProposeConfChange", 1)
 }
 
 func newFakeTransport() *fakeTransport {

@@ -17,6 +17,7 @@
 package copycat
 
 import (
+	"github.com/mhelmich/copycat/pb"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -59,9 +60,10 @@ func (c *copyCatImpl) ConnectToDataStructure(id uint64, provider SnapshotProvide
 	var interactiveBackend *raftBackend
 	var err error
 
-	peers := c.membership.peersForDataStructureId(id)
-	if len(peers) > 0 {
-		interactiveBackend, err = c.membership.newInteractiveRaftBackend(id, c.config, peers, provider)
+	peer, err := c.membership.onePeerForDataStructureId(id)
+	c.logger.Infof("Found data structure [%d] on peer: %s", id, peer.String())
+	if peer != nil {
+		interactiveBackend, err = c.connectToExistingRaftGroup(id, c.config, peer, provider)
 	} else {
 		interactiveBackend, err = c.startNewRaftGroup(id, 1, provider)
 	}
@@ -81,6 +83,18 @@ func (c *copyCatImpl) TakeOwnershipOfDataStructure(id uint64, provider SnapshotP
 // takes a data structure id, joins the raft group as learner, assembles and exposes the raft log
 func (c *copyCatImpl) SubscribeToDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer) {
 	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
+}
+
+func (c *copyCatImpl) connectToExistingRaftGroup(dataStructureId uint64, config *Config, peer *pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
+	// 1. create new interactive raft in join mode (without any peers)
+	backend, err := c.membership.newInteractiveRaftBackendForExistingGroup(dataStructureId, config, provider)
+	if err != nil {
+		return nil, err
+	}
+	// 2. try to contact peers and add the newly created raft to their raft group
+	err = c.membership.addRaftToGroupRemotely(backend.raftId, peer)
+	// 3. -> profit
+	return backend, err
 }
 
 func (c *copyCatImpl) startNewRaftGroup(dataStructureId uint64, numReplicas int, provider SnapshotProvider) (*raftBackend, error) {

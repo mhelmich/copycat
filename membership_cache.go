@@ -29,23 +29,24 @@ import (
 )
 
 type membershipCache struct {
-	membership                        memberList
-	raftIdToRaftBackend               *sync.Map
-	addressToConnection               *sync.Map
-	chooserFunc                       func(peerId uint64, tags map[string]string) bool
-	newInteractiveRaftBackendFunc     func(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error)
-	newDetachedRaftBackendWithIdFunc  func(newRaftId uint64, config *Config) (*raftBackend, error)
-	newRaftTransportServiceClientFunc func(conn *grpc.ClientConn) pb.RaftTransportServiceClient
-	newCopyCatServiceClientFunc       func(conn *grpc.ClientConn) pb.CopyCatServiceClient
-	connectionCacheFunc               func(m *sync.Map, address string) (*grpc.ClientConn, error)
-	myAddress                         string
-	logger                            *log.Entry
+	membership                                    memberList
+	raftIdToRaftBackend                           *sync.Map
+	addressToConnection                           *sync.Map
+	chooserFunc                                   func(peerId uint64, tags map[string]string) bool
+	newInteractiveRaftBackendFunc                 func(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error)
+	newInteractiveRaftBackendForExistingGroupFunc func(config *Config, provider SnapshotProvider) (*raftBackend, error)
+	newDetachedRaftBackendWithIdFunc              func(newRaftId uint64, config *Config) (*raftBackend, error)
+	newRaftTransportServiceClientFunc             func(conn *grpc.ClientConn) pb.RaftTransportServiceClient
+	newCopyCatServiceClientFunc                   func(conn *grpc.ClientConn) pb.CopyCatServiceClient
+	connectionCacheFunc                           func(m *sync.Map, address string) (*grpc.ClientConn, error)
+	myAddress                                     string
+	logger                                        *log.Entry
 }
 
 func newMembershipCache(config *Config) (*membershipCache, error) {
 	m, err := newMembership(config)
 	if err != nil {
-		config.logger.Errorf("Can't create membership: %s", err.Error())
+		config.logger.Errorf("Can't create membership cache: %s", err.Error())
 		return nil, err
 	}
 
@@ -55,11 +56,12 @@ func newMembershipCache(config *Config) (*membershipCache, error) {
 		raftIdToRaftBackend: &sync.Map{},
 		addressToConnection: &sync.Map{},
 		// Yet another level of indirection used for unit testing
-		newInteractiveRaftBackendFunc:     _newInteractiveRaftBackend,
-		newDetachedRaftBackendWithIdFunc:  _newDetachedRaftBackendWithId,
-		newRaftTransportServiceClientFunc: _newRaftTransportServiceClient,
-		newCopyCatServiceClientFunc:       _newCopyCatServiceClient,
-		connectionCacheFunc:               _getConnectionForAddress,
+		newInteractiveRaftBackendFunc:                 _newInteractiveRaftBackend,
+		newInteractiveRaftBackendForExistingGroupFunc: _newInteractiveRaftBackendForExistingGroup,
+		newDetachedRaftBackendWithIdFunc:              _newDetachedRaftBackendWithId,
+		newRaftTransportServiceClientFunc:             _newRaftTransportServiceClient,
+		newCopyCatServiceClientFunc:                   _newCopyCatServiceClient,
+		connectionCacheFunc:                           _getConnectionForAddress,
 		chooserFunc: func(peerId uint64, tags map[string]string) bool {
 			return true
 		},
@@ -70,7 +72,7 @@ func newMembershipCache(config *Config) (*membershipCache, error) {
 func (mc *membershipCache) stepRaft(ctx context.Context, msg raftpb.Message) error {
 	val, ok := mc.raftIdToRaftBackend.Load(msg.To)
 	if !ok {
-		return fmt.Errorf("Can't find raft backend with id: %d", msg.To)
+		return fmt.Errorf("Can't find raft backend with id: %d %x", msg.To, msg.To)
 	}
 
 	backend := val.(*raftBackend)
@@ -78,36 +80,68 @@ func (mc *membershipCache) stepRaft(ctx context.Context, msg raftpb.Message) err
 	return backend.step(ctx, msg)
 }
 
+func (mc *membershipCache) addToRaftGroup(ctx context.Context, existingRaftId uint64, newRaftId uint64) error {
+	val, ok := mc.raftIdToRaftBackend.Load(existingRaftId)
+	if !ok {
+		return fmt.Errorf("Can't find raft backend with id: %d %x", existingRaftId, existingRaftId)
+	}
+
+	backend := val.(*raftBackend)
+	// invokes propose config change under the covers
+	err := backend.addRaftToMyGroup(ctx, newRaftId)
+	if err != nil {
+		return fmt.Errorf("Can't add raft [%d %x] to raft group of [%d %x]: %s", newRaftId, newRaftId, existingRaftId, existingRaftId, err.Error())
+	}
+
+	return nil
+}
+
 func (mc *membershipCache) peersForDataStructureId(dataStructureId uint64) []pb.Peer {
 	return mc.membership.peersForDataStructureId(dataStructureId)
 }
 
+func (mc *membershipCache) onePeerForDataStructureId(dataStructureId uint64) (*pb.Peer, error) {
+	return mc.membership.onePeerForDataStructureId(dataStructureId)
+}
+
 func (mc *membershipCache) newDetachedRaftBackend(dataStructureId uint64, raftId uint64, config *Config) (*raftBackend, error) {
 	backend, err := mc.newDetachedRaftBackendWithIdFunc(raftId, config)
-	if err == nil {
-		_, loaded := mc.raftIdToRaftBackend.LoadOrStore(raftId, backend)
-		if loaded {
-			defer backend.stop()
-			return nil, fmt.Errorf("Raft backend with id [%d] existed already", raftId)
-		}
-
-		mc.membership.addDataStructureToRaftIdMapping(dataStructureId, raftId)
+	if err != nil {
+		return nil, err
 	}
+
+	err = mc.stashRaftBackend(dataStructureId, backend)
 	return backend, err
 }
 
 func (mc *membershipCache) newInteractiveRaftBackend(dataStructureId uint64, config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
 	backend, err := mc.newInteractiveRaftBackendFunc(config, peers, provider)
-	if err == nil {
-		_, loaded := mc.raftIdToRaftBackend.LoadOrStore(backend.raftId, backend)
-		if loaded {
-			defer backend.stop()
-			return nil, fmt.Errorf("Raft backend with id [%d] existed already", backend.raftId)
-		}
-
-		mc.membership.addDataStructureToRaftIdMapping(dataStructureId, backend.raftId)
+	if err != nil {
+		return nil, err
 	}
+
+	err = mc.stashRaftBackend(dataStructureId, backend)
 	return backend, err
+}
+
+func (mc *membershipCache) newInteractiveRaftBackendForExistingGroup(dataStructureId uint64, config *Config, provider SnapshotProvider) (*raftBackend, error) {
+	backend, err := mc.newInteractiveRaftBackendForExistingGroupFunc(config, provider)
+	if err != nil {
+		return nil, err
+	}
+
+	err = mc.stashRaftBackend(dataStructureId, backend)
+	return backend, err
+}
+
+func (mc *membershipCache) stashRaftBackend(dataStructureId uint64, backend *raftBackend) error {
+	_, loaded := mc.raftIdToRaftBackend.LoadOrStore(backend.raftId, backend)
+	if loaded {
+		defer backend.stop()
+		return fmt.Errorf("Raft backend with id [%d %x] existed already", backend.raftId, backend.raftId)
+	}
+
+	return mc.membership.addDataStructureToRaftIdMapping(dataStructureId, backend.raftId)
 }
 
 func (mc *membershipCache) stopRaft(raftId uint64) error {
@@ -123,7 +157,7 @@ func (mc *membershipCache) stopRaft(raftId uint64) error {
 func (mc *membershipCache) getRaftTransportClientForRaftId(raftId uint64) (pb.RaftTransportServiceClient, error) {
 	addr := mc.membership.getAddressForRaftId(raftId)
 	if addr == "" {
-		return nil, fmt.Errorf("Can't find raft with id: %d", raftId)
+		return nil, fmt.Errorf("Can't find raft with id: %d %x", raftId, raftId)
 	}
 
 	return mc.newRaftTransportServiceClient(mc.addressToConnection, addr)
@@ -170,6 +204,27 @@ func (mc *membershipCache) chooseReplicaNode(dataStructureId uint64, numReplicas
 			return newRafts[:j], fmt.Errorf("Couldn't find enough remote peers for raft creation and timed out")
 		}
 	}
+}
+
+func (mc *membershipCache) addRaftToGroupRemotely(newRaftId uint64, peer *pb.Peer) error {
+	client, err := mc.newCopyCatServiceClient(mc.addressToConnection, peer.RaftAddress)
+	if err != nil {
+		err = fmt.Errorf("Can't connect to %d %x %s: %s", peer.Id, peer.Id, peer.RaftAddress, err.Error())
+		mc.logger.Errorf("%s", err.Error())
+		return err
+	}
+
+	req := &pb.AddRaftRequest{
+		NewRaftId:      newRaftId,
+		ExistingRaftId: peer.Id,
+	}
+	_, err = client.AddRaftToRaftGroup(context.TODO(), req)
+	if err != nil {
+		err = fmt.Errorf("Can't add raft to raft group: %s", err.Error())
+		mc.logger.Errorf("%s", err.Error())
+		return err
+	}
+	return nil
 }
 
 func (mc *membershipCache) startRaftRemotely(peerCh chan *pb.Peer, dataStructureId uint64, address string) {
@@ -227,7 +282,7 @@ func (mc *membershipCache) newRaftTransportServiceClient(m *sync.Map, address st
 func (mc *membershipCache) getRaftTransportServiceClientForRaftId(raftId uint64) (pb.RaftTransportServiceClient, error) {
 	addr := mc.membership.getAddressForRaftId(raftId)
 	if addr == "" {
-		err := fmt.Errorf("Can't find raft with id [%d] because addr was empty", raftId)
+		err := fmt.Errorf("Can't find raft with id [%d %x] because addr was empty", raftId, raftId)
 		mc.logger.Errorf("%s", err.Error())
 		return nil, err
 	}
@@ -266,6 +321,10 @@ func (mc *membershipCache) stop() error {
 
 func _newInteractiveRaftBackend(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
 	return newInteractiveRaftBackend(config, peers, provider)
+}
+
+func _newInteractiveRaftBackendForExistingGroup(config *Config, provider SnapshotProvider) (*raftBackend, error) {
+	return newInteractiveRaftBackendForExistingGroup(config, provider)
 }
 
 func _newDetachedRaftBackendWithId(newRaftId uint64, config *Config) (*raftBackend, error) {

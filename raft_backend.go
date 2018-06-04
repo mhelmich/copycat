@@ -52,6 +52,8 @@ type raftBackend struct {
 	// this object describes the topology of the raft group this backend is part of
 	confState raftpb.ConfState
 	// Keeps track of the latest config change id. The next id is this id + 1.
+	// HACK - there's obviously a race condition around this considering that
+	// whatever id this raft node has, the leader in the group might have a higher one
 	latestConfChangeId uint64
 	// An interactive raft backend returns proposal and commit channels.
 	// It listens to them or writes to them respectively.
@@ -426,11 +428,10 @@ func (rb *raftBackend) publishEntries(ents []raftpb.Entry) bool {
 			rb.store.saveConfigState(rb.confState)
 			rb.latestConfChangeId = cc.ID
 			switch cc.Type {
-			// TODO: build a raft backend connection cache to the respective peers maybe?
 			case raftpb.ConfChangeRemoveNode:
 				if cc.NodeID == rb.raftId {
 					rb.logger.Error("I've been removed from the cluster! Shutting down.")
-					// this false will the code call stop eventually
+					// this false will cause the code to call stop eventually
 					return false
 				}
 			default:
@@ -447,6 +448,15 @@ func (rb *raftBackend) publishEntries(ents []raftpb.Entry) bool {
 func (rb *raftBackend) snapshot() ([]byte, error) {
 	snap, err := rb.store.Snapshot()
 	return snap.Data, err
+}
+
+func (rb *raftBackend) addRaftToMyGroup(ctx context.Context, newRaftId uint64) error {
+	cc := raftpb.ConfChange{
+		Type:   raftpb.ConfChangeAddLearnerNode,
+		ID:     rb.latestConfChangeId + 1,
+		NodeID: newRaftId,
+	}
+	return rb.raftNode.ProposeConfChange(ctx, cc)
 }
 
 func (rb *raftBackend) stop() {

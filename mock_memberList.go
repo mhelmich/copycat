@@ -65,6 +65,29 @@ func (_m *mockMemberList) myGossipNodeId() uint64 {
 	return r0
 }
 
+// onePeerForDataStructureId provides a mock function with given fields: dataStructureId
+func (_m *mockMemberList) onePeerForDataStructureId(dataStructureId uint64) (*pb.Peer, error) {
+	ret := _m.Called(dataStructureId)
+
+	var r0 *pb.Peer
+	if rf, ok := ret.Get(0).(func(uint64) *pb.Peer); ok {
+		r0 = rf(dataStructureId)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.Peer)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(uint64) error); ok {
+		r1 = rf(dataStructureId)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // peersForDataStructureId provides a mock function with given fields: dataStructureId
 func (_m *mockMemberList) peersForDataStructureId(dataStructureId uint64) []pb.Peer {
 	ret := _m.Called(dataStructureId)

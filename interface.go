@@ -119,17 +119,22 @@ type raftTransport interface {
 type membershipProxy interface {
 	getRaftTransportServiceClientForRaftId(raftId uint64) (pb.RaftTransportServiceClient, error)
 	peersForDataStructureId(dataStructureId uint64) []pb.Peer
+	onePeerForDataStructureId(dataStructureId uint64) (*pb.Peer, error)
 	chooseReplicaNode(dataStructureId uint64, numReplicas int) ([]pb.Peer, error)
 	newDetachedRaftBackend(dataStructureId uint64, raftId uint64, config *Config) (*raftBackend, error)
 	newInteractiveRaftBackend(dataStructureId uint64, config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error)
+	newInteractiveRaftBackendForExistingGroup(dataStructureId uint64, config *Config, provider SnapshotProvider) (*raftBackend, error)
 	stopRaft(raftId uint64) error
 	stepRaft(ctx context.Context, msg raftpb.Message) error
+	addToRaftGroup(ctx context.Context, existingRaftId uint64, newRaftId uint64) error
+	addRaftToGroupRemotely(newRaftId uint64, peers *pb.Peer) error
 	stop() error
 }
 
 // Internal interface that is used in copycat and the transport.
 // It was introduced for mocking purposes.
 type memberList interface {
+	onePeerForDataStructureId(dataStructureId uint64) (*pb.Peer, error)
 	peersForDataStructureId(dataStructureId uint64) []pb.Peer
 	addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error
 	removeDataStructureToRaftIdMapping(raftId uint64) error

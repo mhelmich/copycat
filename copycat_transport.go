@@ -87,6 +87,11 @@ func (t *copyCatTransport) StopRaft(ctx context.Context, in *pb.StopRaftRequest)
 	return &pb.StopRaftResponse{}, nil
 }
 
+func (t *copyCatTransport) AddRaftToRaftGroup(ctx context.Context, in *pb.AddRaftRequest) (*pb.AddRaftResponse, error) {
+	err := t.membership.addToRaftGroup(ctx, in.ExistingRaftId, in.NewRaftId)
+	return &pb.AddRaftResponse{}, err
+}
+
 //////////////////////////////////////////
 ////////////////////////////////
 // SECTION FOR THE RAFT TRANSPORT

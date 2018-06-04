@@ -105,6 +105,7 @@ message SendResp {
 service CopyCatService {
   rpc StartRaft(StartRaftRequest) returns (StartRaftResponse) {}
   rpc StopRaft(StopRaftRequest) returns (StopRaftResponse) {}
+  rpc AddRaftToRaftGroup(AddRaftRequest) returns (AddRaftResponse) {}
 }
 
 message StartRaftRequest {
@@ -121,4 +122,12 @@ message StopRaftRequest {
 }
 
 message StopRaftResponse {
+}
+
+message AddRaftRequest {
+  uint64 NewRaftId = 1;
+  uint64 ExistingRaftId = 2;
+}
+
+message AddRaftResponse {
 }

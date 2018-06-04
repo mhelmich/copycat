@@ -145,9 +145,6 @@ func TestTransportReportFailures(t *testing.T) {
 }
 
 func TestTransportStartStopRaft(t *testing.T) {
-	// create the mock here
-	// mock out the methods later
-	// there's a chicken and egg problem where I need the proxy
 	m := new(mockMembershipProxy)
 	m.On("newDetachedRaftBackend", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 	m.On("stopRaft", mock.Anything).Return(nil)
@@ -157,10 +154,6 @@ func TestTransportStartStopRaft(t *testing.T) {
 
 	mockTransport := new(mockRaftTransport)
 	config.raftTransport = mockTransport
-
-	mockBackend := new(mockRaftBackend)
-	mockBackend.On("step", mock.Anything, mock.Anything).Return(nil)
-	mockBackend.On("stop").Return()
 
 	transport := &copyCatTransport{
 		config:     config,

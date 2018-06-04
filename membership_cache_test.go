@@ -268,3 +268,29 @@ func TestMembershipCacheCreateConnection(t *testing.T) {
 	assert.NotNil(t, err)
 	transport.stop()
 }
+
+func TestMembershipCacheAddToRaftGroup(t *testing.T) {
+	newRaftId := uint64(99)
+	mockRaftNode := new(mockRaftNode)
+	mockRaftNode.On("ProposeConfChange", mock.Anything, mock.MatchedBy(func(cc raftpb.ConfChange) bool { return cc.NodeID == newRaftId })).Return(nil)
+
+	mockBackend := &raftBackend{
+		raftId:   randomRaftId(),
+		raftNode: mockRaftNode,
+		stopChan: make(chan struct{}, 1),
+	}
+
+	mc := &membershipCache{
+		raftIdToRaftBackend: &sync.Map{},
+	}
+
+	mc.raftIdToRaftBackend.Store(mockBackend.raftId, mockBackend)
+	// negative test
+	err := mc.addToRaftGroup(context.TODO(), uint64(85), newRaftId)
+	assert.NotNil(t, err)
+	mockRaftNode.AssertNumberOfCalls(t, "ProposeConfChange", 0)
+	// positive test
+	err = mc.addToRaftGroup(context.TODO(), mockBackend.raftId, newRaftId)
+	assert.Nil(t, err)
+	mockRaftNode.AssertNumberOfCalls(t, "ProposeConfChange", 1)
+}

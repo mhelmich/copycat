@@ -11,6 +11,34 @@ type mockMembershipProxy struct {
 	mock.Mock
 }
 
+// addRaftToGroupRemotely provides a mock function with given fields: newRaftId, peers
+func (_m *mockMembershipProxy) addRaftToGroupRemotely(newRaftId uint64, peers *pb.Peer) error {
+	ret := _m.Called(newRaftId, peers)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(uint64, *pb.Peer) error); ok {
+		r0 = rf(newRaftId, peers)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// addToRaftGroup provides a mock function with given fields: ctx, existingRaftId, newRaftId
+func (_m *mockMembershipProxy) addToRaftGroup(ctx context.Context, existingRaftId uint64, newRaftId uint64) error {
+	ret := _m.Called(ctx, existingRaftId, newRaftId)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uint64, uint64) error); ok {
+		r0 = rf(ctx, existingRaftId, newRaftId)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // chooseReplicaNode provides a mock function with given fields: dataStructureId, numReplicas
 func (_m *mockMembershipProxy) chooseReplicaNode(dataStructureId uint64, numReplicas int) ([]pb.Peer, error) {
 	ret := _m.Called(dataStructureId, numReplicas)
@@ -96,6 +124,52 @@ func (_m *mockMembershipProxy) newInteractiveRaftBackend(dataStructureId uint64,
 	var r1 error
 	if rf, ok := ret.Get(1).(func(uint64, *Config, []pb.Peer, SnapshotProvider) error); ok {
 		r1 = rf(dataStructureId, config, peers, provider)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// newInteractiveRaftBackendForExistingGroup provides a mock function with given fields: dataStructureId, config, provider
+func (_m *mockMembershipProxy) newInteractiveRaftBackendForExistingGroup(dataStructureId uint64, config *Config, provider SnapshotProvider) (*raftBackend, error) {
+	ret := _m.Called(dataStructureId, config, provider)
+
+	var r0 *raftBackend
+	if rf, ok := ret.Get(0).(func(uint64, *Config, SnapshotProvider) *raftBackend); ok {
+		r0 = rf(dataStructureId, config, provider)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*raftBackend)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(uint64, *Config, SnapshotProvider) error); ok {
+		r1 = rf(dataStructureId, config, provider)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// onePeerForDataStructureId provides a mock function with given fields: dataStructureId
+func (_m *mockMembershipProxy) onePeerForDataStructureId(dataStructureId uint64) (*pb.Peer, error) {
+	ret := _m.Called(dataStructureId)
+
+	var r0 *pb.Peer
+	if rf, ok := ret.Get(0).(func(uint64) *pb.Peer); ok {
+		r0 = rf(dataStructureId)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.Peer)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(uint64) error); ok {
+		r1 = rf(dataStructureId)
 	} else {
 		r1 = ret.Error(1)
 	}
