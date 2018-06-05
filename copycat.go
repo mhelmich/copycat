@@ -69,6 +69,8 @@ func (c *copyCatImpl) ConnectToDataStructure(id uint64, provider SnapshotProvide
 	} else {
 		// TODO: revisit the concept of number of replicas
 		// In my mind the number of replicas is just a proxy for how paranoid you are...
+		// Maybe it's easier for the user to fhink about it as different use cases.
+		// Meh, paranoia and consistency vs real consistency
 		interactiveBackend, err = c.startNewRaftGroup(id, 1, provider)
 	}
 
