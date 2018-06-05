@@ -17,6 +17,8 @@
 package copycat
 
 import (
+	"strings"
+
 	"github.com/mhelmich/copycat/pb"
 	log "github.com/sirupsen/logrus"
 )
@@ -65,6 +67,8 @@ func (c *copyCatImpl) ConnectToDataStructure(id uint64, provider SnapshotProvide
 	if peer != nil {
 		interactiveBackend, err = c.connectToExistingRaftGroup(id, c.config, peer, provider)
 	} else {
+		// TODO: revisit the concept of number of replicas
+		// In my mind the number of replicas is just a proxy for how paranoid you are...
 		interactiveBackend, err = c.startNewRaftGroup(id, 1, provider)
 	}
 
@@ -100,16 +104,24 @@ func (c *copyCatImpl) connectToExistingRaftGroup(dataStructureId uint64, config 
 func (c *copyCatImpl) startNewRaftGroup(dataStructureId uint64, numReplicas int, provider SnapshotProvider) (*raftBackend, error) {
 	c.logger.Infof("Starting a new raft group around data structure with id [%d] and [%d] replicas", dataStructureId, numReplicas)
 	remoteRafts, err := c.membership.chooseReplicaNode(dataStructureId, numReplicas)
-	if err != nil {
+	if err != nil && err == errCantFindEnoughReplicas {
+		c.logger.Warnf("Can't fulfill replication request: %s", err.Error())
+	} else if err != nil {
 		return nil, err
 	}
 
+	peersString := make([]string, len(remoteRafts))
+	for idx, peer := range remoteRafts {
+		peersString[idx] = peer.String()
+	}
+	c.logger.Infof("Started %d remote rafts: %s", len(remoteRafts), strings.Join(peersString, ", "))
 	localRaft, err := c.membership.newInteractiveRaftBackend(dataStructureId, c.config, remoteRafts, provider)
 	if err != nil {
+		// TODO: shutdown other remote rafts...their are just dangling in the nothing so far
 		return nil, err
 	}
 
-	return localRaft, nil
+	return localRaft, err
 }
 
 func (c *copyCatImpl) Shutdown() {

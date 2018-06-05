@@ -201,7 +201,7 @@ func (mc *membershipCache) chooseReplicaNode(dataStructureId uint64, numReplicas
 
 			}
 		case <-time.After(time.Until(timeout)):
-			return newRafts[:j], fmt.Errorf("Couldn't find enough remote peers for raft creation and timed out")
+			return newRafts[:j], errCantFindEnoughReplicas
 		}
 	}
 }
