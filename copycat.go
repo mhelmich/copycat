@@ -107,7 +107,11 @@ func (c *copyCatImpl) startNewRaftGroup(dataStructureId uint64, numReplicas int,
 	c.logger.Infof("Starting a new raft group around data structure with id [%d] and [%d] replicas", dataStructureId, numReplicas)
 	remoteRafts, err := c.membership.chooseReplicaNode(dataStructureId, numReplicas)
 	if err != nil && err == errCantFindEnoughReplicas {
-		c.logger.Warnf("Can't fulfill replication request: %s", err.Error())
+		peersString := make([]string, len(remoteRafts))
+		for idx, peer := range remoteRafts {
+			peersString[idx] = peer.String()
+		}
+		c.logger.Warnf("Can't fulfill replication request. Want replicas %d got %s: %s", numReplicas, strings.Join(peersString, ", "), err.Error())
 	} else if err != nil {
 		return nil, err
 	}
