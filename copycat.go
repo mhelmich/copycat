@@ -111,7 +111,7 @@ func (c *copyCatImpl) startNewRaftGroup(dataStructureId uint64, numReplicas int,
 		for idx, peer := range remoteRafts {
 			peersString[idx] = peer.String()
 		}
-		c.logger.Warnf("Can't fulfill replication request. Want replicas %d got %s: %s", numReplicas, strings.Join(peersString, ", "), err.Error())
+		c.logger.Warnf("Can't fulfill replication request. Want replicas %d got [%s]: %s", numReplicas, strings.Join(peersString, ", "), err.Error())
 	} else if err != nil {
 		return nil, err
 	}
