@@ -31,7 +31,7 @@ import (
 
 func TestMembershipBasic(t *testing.T) {
 	config := DefaultConfig()
-	config.hostname = "127.0.0.1"
+	config.Hostname = "127.0.0.1"
 	config.CopyCatDataDir = "./test-TestMembershipBasic-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
@@ -49,7 +49,7 @@ func TestMembershipBasic(t *testing.T) {
 
 func TestMembershipBasicTwoNodes(t *testing.T) {
 	config1 := DefaultConfig()
-	config1.hostname = "127.0.0.1"
+	config1.Hostname = "127.0.0.1"
 	config1.CopyCatDataDir = "./test-TestMembershipBasicTwoNodes-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
@@ -57,11 +57,11 @@ func TestMembershipBasicTwoNodes(t *testing.T) {
 	assert.Nil(t, err)
 
 	config2 := DefaultConfig()
-	config2.hostname = "127.0.0.1"
+	config2.Hostname = "127.0.0.1"
 	config2.CopyCatDataDir = "./test-TestMembershipBasicTwoNodes-" + uint64ToString(randomRaftId()) + "/"
 	config2.GossipPort = config1.GossipPort + 100
 	config2.PeersToContact = make([]string, 1)
-	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.GossipPort)
+	config2.PeersToContact[0] = config1.Hostname + ":" + strconv.Itoa(config1.GossipPort)
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	m2, err := newMembership(config2)
@@ -139,7 +139,7 @@ func TestMembershipNodeJoin(t *testing.T) {
 
 func TestMembershipHandleQuery(t *testing.T) {
 	config := DefaultConfig()
-	config.hostname = "127.0.0.1"
+	config.Hostname = "127.0.0.1"
 	config.CopyCatDataDir = "./test-TestMembershipHandleQuery-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
@@ -168,7 +168,7 @@ func TestMembershipHandleQuery(t *testing.T) {
 
 func TestMembershipDataStructureQuery(t *testing.T) {
 	config1 := DefaultConfig()
-	config1.hostname = "127.0.0.1"
+	config1.Hostname = "127.0.0.1"
 	config1.CopyCatDataDir = "./test-TestMembershipDataStructureQuery-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
@@ -176,11 +176,11 @@ func TestMembershipDataStructureQuery(t *testing.T) {
 	assert.Nil(t, err)
 
 	config2 := DefaultConfig()
-	config2.hostname = "127.0.0.1"
+	config2.Hostname = "127.0.0.1"
 	config2.CopyCatDataDir = "./test-TestMembershipDataStructureQuery-" + uint64ToString(randomRaftId()) + "/"
 	config2.GossipPort = config1.GossipPort + 10000
 	config2.PeersToContact = make([]string, 1)
-	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.GossipPort)
+	config2.PeersToContact[0] = config1.Hostname + ":" + strconv.Itoa(config1.GossipPort)
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	m2, err := newMembership(config2)
@@ -251,7 +251,7 @@ func TestMembershipPeersForDataStructure(t *testing.T) {
 
 func TestMembershipAddRemoveDataStructureToRaftIdMapping(t *testing.T) {
 	config := DefaultConfig()
-	config.hostname = "127.0.0.1"
+	config.Hostname = "127.0.0.1"
 	config.CopyCatDataDir = "./test-TestMembershipAddRemoveDataStructureToRaftIdMapping-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)

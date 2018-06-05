@@ -36,7 +36,7 @@ const (
 func DefaultConfig() *Config {
 	host, _ := os.Hostname()
 	return &Config{
-		hostname:       host,
+		Hostname:       host,
 		CopyCatPort:    defaultCopyCatPort,
 		GossipPort:     defaultCopyCatPort + 1000,
 		CopyCatDataDir: defaultCopyCatDataDir,
@@ -51,6 +51,8 @@ func DefaultConfig() *Config {
 
 // Config is the public configuration struct that needs to be passed into the constructor function.
 type Config struct {
+	// Advertized host name
+	Hostname string
 	// Port of the CopyCat server. The server runs the management interface and the raft state machine.
 	CopyCatPort int
 	// Port on which CopyCat gossips about cluster metadata.
@@ -67,12 +69,11 @@ type Config struct {
 
 	// Populated internally.
 	raftTransport raftTransport
-	hostname      string
 	logger        *log.Entry
 }
 
 func (c *Config) address() string {
-	return c.hostname + ":" + strconv.Itoa(c.CopyCatPort)
+	return c.Hostname + ":" + strconv.Itoa(c.CopyCatPort)
 }
 
 // NewCopyCat initiates and starts the copycat framework.

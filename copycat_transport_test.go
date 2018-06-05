@@ -158,7 +158,7 @@ func TestTransportStartStopRaft(t *testing.T) {
 	transport := &copyCatTransport{
 		config:     config,
 		membership: m,
-		myAddress:  config.hostname + ":" + strconv.Itoa(config.CopyCatPort),
+		myAddress:  config.Hostname + ":" + strconv.Itoa(config.CopyCatPort),
 		logger: log.WithFields(log.Fields{
 			"test": "TestTransportStartStopRaft",
 		}),
@@ -168,7 +168,7 @@ func TestTransportStartStopRaft(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, respStart.RaftId)
 	assert.NotNil(t, respStart.RaftAddress)
-	assert.Equal(t, config.hostname+":"+strconv.Itoa(config.CopyCatPort), respStart.RaftAddress)
+	assert.Equal(t, config.Hostname+":"+strconv.Itoa(config.CopyCatPort), respStart.RaftAddress)
 
 	respStop, err := transport.StopRaft(context.TODO(), &pb.StopRaftRequest{RaftId: respStart.RaftId})
 	assert.Nil(t, err)

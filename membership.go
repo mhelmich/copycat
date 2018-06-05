@@ -77,7 +77,7 @@ func newMembership(config *Config) (*membership, error) {
 	serfConfig.EventCh = serfEventCh
 	serfConfig.NodeName = uint64ToString(serfNodeId)
 	serfConfig.EnableNameConflictResolution = true
-	serfConfig.MemberlistConfig.BindAddr = config.hostname
+	serfConfig.MemberlistConfig.BindAddr = config.Hostname
 	serfConfig.MemberlistConfig.BindPort = config.GossipPort
 	serfConfig.LogOutput = logger.WriterLevel(log.DebugLevel)
 	if strings.HasSuffix(config.CopyCatDataDir, "/") {
@@ -87,7 +87,7 @@ func newMembership(config *Config) (*membership, error) {
 	}
 
 	serfConfig.Tags = make(map[string]string)
-	serfConfig.Tags[serfMDKeyHost] = config.hostname
+	serfConfig.Tags[serfMDKeyHost] = config.Hostname
 	serfConfig.Tags[serfMDKeySerfPort] = strconv.Itoa(config.GossipPort)
 	serfConfig.Tags[serfMDKeyCopyCatPort] = strconv.Itoa(config.CopyCatPort)
 	serfConfig.Tags[serfMDKeyLocation] = config.Location

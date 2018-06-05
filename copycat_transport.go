@@ -41,7 +41,7 @@ func newTransport(config *Config, membership membershipProxy) (*copyCatTransport
 		"component": "copycat_transport",
 	})
 
-	myAddress := fmt.Sprintf("%s:%d", config.hostname, config.CopyCatPort)
+	myAddress := fmt.Sprintf("%s:%d", config.Hostname, config.CopyCatPort)
 	lis, err := net.Listen("tcp", myAddress)
 	if err != nil {
 		logger.Fatalf("failed to listen: %v", err)

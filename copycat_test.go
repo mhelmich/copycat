@@ -40,7 +40,7 @@ func TestCopyCatBasic(t *testing.T) {
 func TestCopyCatNewDataStructure(t *testing.T) {
 	newDataStructureId := randomRaftId()
 	config1 := DefaultConfig()
-	config1.hostname = "127.0.0.1"
+	config1.Hostname = "127.0.0.1"
 	config1.CopyCatDataDir = "./test-TestCopyCatNewDataStructure-" + uint64ToString(randomRaftId()) + "/"
 	config1.GossipPort = 10000
 	config1.CopyCatPort = 20000
@@ -50,12 +50,12 @@ func TestCopyCatNewDataStructure(t *testing.T) {
 	assert.Nil(t, err)
 
 	config2 := DefaultConfig()
-	config2.hostname = "127.0.0.1"
+	config2.Hostname = "127.0.0.1"
 	config2.CopyCatDataDir = "./test-TestCopyCatNewDataStructure-" + uint64ToString(randomRaftId()) + "/"
 	config2.GossipPort = config1.GossipPort + 1111
 	config2.CopyCatPort = config1.CopyCatPort + 1111
 	config2.PeersToContact = make([]string, 1)
-	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.GossipPort)
+	config2.PeersToContact[0] = config1.Hostname + ":" + strconv.Itoa(config1.GossipPort)
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	cc2, err := newCopyCat(config2)
@@ -80,7 +80,7 @@ func TestCopyCatNewDataStructure(t *testing.T) {
 func TestCopyCatConnectToExistingDataStructure(t *testing.T) {
 	newDataStructureId := randomRaftId()
 	config1 := DefaultConfig()
-	config1.hostname = "127.0.0.1"
+	config1.Hostname = "127.0.0.1"
 	config1.CopyCatDataDir = "./test-TestCopyCatConnectToExistingDataStructure-" + uint64ToString(randomRaftId()) + "/"
 	config1.GossipPort = 10000
 	config1.CopyCatPort = 20000
@@ -90,12 +90,12 @@ func TestCopyCatConnectToExistingDataStructure(t *testing.T) {
 	assert.Nil(t, err)
 
 	config2 := DefaultConfig()
-	config2.hostname = "127.0.0.1"
+	config2.Hostname = "127.0.0.1"
 	config2.CopyCatDataDir = "./test-TestCopyCatConnectToExistingDataStructure-" + uint64ToString(randomRaftId()) + "/"
 	config2.GossipPort = config1.GossipPort + 1111
 	config2.CopyCatPort = config1.CopyCatPort + 1111
 	config2.PeersToContact = make([]string, 1)
-	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.GossipPort)
+	config2.PeersToContact[0] = config1.Hostname + ":" + strconv.Itoa(config1.GossipPort)
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	cc2, err := newCopyCat(config2)
@@ -112,12 +112,12 @@ func TestCopyCatConnectToExistingDataStructure(t *testing.T) {
 	assert.Equal(t, "world", string(bites))
 
 	config3 := DefaultConfig()
-	config3.hostname = "127.0.0.1"
+	config3.Hostname = "127.0.0.1"
 	config3.CopyCatDataDir = "./test-TestCopyCatConnectToExistingDataStructure-" + uint64ToString(randomRaftId()) + "/"
 	config3.GossipPort = config2.GossipPort + 1111
 	config3.CopyCatPort = config2.CopyCatPort + 1111
 	config3.PeersToContact = make([]string, 1)
-	config3.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.GossipPort)
+	config3.PeersToContact[0] = config1.Hostname + ":" + strconv.Itoa(config1.GossipPort)
 	err = os.MkdirAll(config3.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	cc3, err := newCopyCat(config3)

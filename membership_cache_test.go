@@ -35,7 +35,7 @@ import (
 
 func TestMembershipCacheBasic(t *testing.T) {
 	config1 := DefaultConfig()
-	config1.hostname = "127.0.0.1"
+	config1.Hostname = "127.0.0.1"
 	config1.CopyCatDataDir = "./test-TestMembershipCacheBasic-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
@@ -43,11 +43,11 @@ func TestMembershipCacheBasic(t *testing.T) {
 	assert.Nil(t, err)
 
 	config2 := DefaultConfig()
-	config2.hostname = "127.0.0.1"
+	config2.Hostname = "127.0.0.1"
 	config2.CopyCatDataDir = "./test-TestMembershipCacheBasic-" + uint64ToString(randomRaftId()) + "/"
 	config2.GossipPort = config1.GossipPort + 100
 	config2.PeersToContact = make([]string, 1)
-	config2.PeersToContact[0] = config1.hostname + ":" + strconv.Itoa(config1.GossipPort)
+	config2.PeersToContact[0] = config1.Hostname + ":" + strconv.Itoa(config1.GossipPort)
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	m2, err := newMembershipCache(config2)

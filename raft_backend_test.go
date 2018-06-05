@@ -75,11 +75,11 @@ func TestRaftBackendBasic(t *testing.T) {
 	peers3 := make([]pb.Peer, 2)
 	peers3[0] = pb.Peer{
 		Id:          detachedBackend1.raftId,
-		RaftAddress: config1.hostname + ":" + strconv.Itoa(config1.CopyCatPort),
+		RaftAddress: config1.Hostname + ":" + strconv.Itoa(config1.CopyCatPort),
 	}
 	peers3[1] = pb.Peer{
 		Id:          detachedBackend2.raftId,
-		RaftAddress: config2.hostname + ":" + strconv.Itoa(config2.CopyCatPort),
+		RaftAddress: config2.Hostname + ":" + strconv.Itoa(config2.CopyCatPort),
 	}
 	interactiveBackend, err := newInteractiveRaftBackend(config3, peers3, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
@@ -151,11 +151,11 @@ func TestRaftBackendAddNewRaftToExistingGroup(t *testing.T) {
 	peers3 := make([]pb.Peer, 2)
 	peers3[0] = pb.Peer{
 		Id:          detachedBackend1.raftId,
-		RaftAddress: config1.hostname + ":" + strconv.Itoa(config1.CopyCatPort),
+		RaftAddress: config1.Hostname + ":" + strconv.Itoa(config1.CopyCatPort),
 	}
 	peers3[1] = pb.Peer{
 		Id:          detachedBackend2.raftId,
-		RaftAddress: config2.hostname + ":" + strconv.Itoa(config2.CopyCatPort),
+		RaftAddress: config2.Hostname + ":" + strconv.Itoa(config2.CopyCatPort),
 	}
 	interactiveBackend1, err := newInteractiveRaftBackend(config3, peers3, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
