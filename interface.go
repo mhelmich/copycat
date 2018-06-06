@@ -19,8 +19,10 @@ package copycat
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/coreos/etcd/raft"
 	"github.com/coreos/etcd/raft/raftpb"
@@ -70,6 +72,10 @@ type Config struct {
 	// Populated internally.
 	raftTransport raftTransport
 	logger        *log.Entry
+}
+
+func (c *Config) String() string {
+	return fmt.Sprintf("CopyCatConfig: Hostname: [%s] CopyCatPort: [%d] GossipPort: [%d] Location: [%s] Peers: [%s] DataDir: [%s]", c.Hostname, c.CopyCatPort, c.GossipPort, c.Location, strings.Join(c.PeersToContact, ", "), c.CopyCatDataDir)
 }
 
 func (c *Config) address() string {

@@ -48,13 +48,16 @@ func newCopyCat(config *Config) (*copyCatImpl, error) {
 	// HACK
 	// this will be used in raft backends
 	config.raftTransport = t
-	return &copyCatImpl{
+	cc := &copyCatImpl{
 		transport:  t,
 		membership: cache,
 		myAddress:  config.address(),
 		config:     config,
 		logger:     config.logger,
-	}, nil
+	}
+
+	cc.logger.Infof("Started CopyCat instance with config: %s", config.String())
+	return cc, nil
 }
 
 // takes one operation, finds the leader remotely, and sends the operation to the leader
