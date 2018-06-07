@@ -25,15 +25,17 @@ import (
 	"github.com/coreos/etcd/raft/raftpb"
 	"github.com/mhelmich/copycat/pb"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 )
 
 type copyCatTransport struct {
-	config     *Config
-	grpcServer *grpc.Server
-	myAddress  string
-	membership membershipProxy
-	logger     *log.Entry
+	config          *Config
+	grpcServer      *grpc.Server
+	myAddress       string
+	membership      membershipProxy
+	errorLogLimiter *rate.Limiter
+	logger          *log.Entry
 }
 
 func newTransport(config *Config, membership membershipProxy) (*copyCatTransport, error) {
@@ -49,11 +51,12 @@ func newTransport(config *Config, membership membershipProxy) (*copyCatTransport
 	}
 
 	transport := &copyCatTransport{
-		config:     config,
-		grpcServer: grpc.NewServer(),
-		myAddress:  myAddress,
-		membership: membership,
-		logger:     logger,
+		config:          config,
+		grpcServer:      grpc.NewServer(),
+		myAddress:       myAddress,
+		membership:      membership,
+		errorLogLimiter: rate.NewLimiter(1.0, 1),
+		logger:          logger,
 	}
 
 	pb.RegisterCopyCatServiceServer(transport.grpcServer, transport)
@@ -122,7 +125,9 @@ func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) *messageSendingRe
 	for _, msg := range msgs {
 		client, err := t.membership.getRaftTransportServiceClientForRaftId(msg.To)
 		if err != nil {
-			t.logger.Errorf("Can't create raft transport client: %s", err.Error())
+			if t.errorLogLimiter.Allow() {
+				t.logger.Errorf("Can't create raft transport client: %s", err.Error())
+			}
 			continue
 		}
 
@@ -131,13 +136,17 @@ func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) *messageSendingRe
 		defer cancel()
 		stream, err := client.Send(ctx)
 		if err != nil {
-			t.logger.Errorf("Can't get stream: %s", err.Error())
+			if t.errorLogLimiter.Allow() {
+				t.logger.Errorf("Can't get stream: %s", err.Error())
+			}
 			continue
 		}
 
 		err = stream.Send(&pb.SendReq{Message: &msg})
 		if err != nil {
-			t.logger.Errorf("Can't send on stream: %s", err.Error())
+			if t.errorLogLimiter.Allow() {
+				t.logger.Errorf("Can't send on stream: %s", err.Error())
+			}
 			results = t.addFailedMessage(results, msg)
 			continue
 		} else if isMsgSnap(msg) {
@@ -146,18 +155,24 @@ func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) *messageSendingRe
 
 		resp, err := stream.Recv()
 		if err != nil {
-			t.logger.Errorf("Can't contact node for message %s: %s", msg.String(), err.Error())
+			if t.errorLogLimiter.Allow() {
+				t.logger.Errorf("Can't contact node for message %s: %s", msg.String(), err.Error())
+			}
 			results = t.addFailedMessage(results, msg)
 			continue
 		} else if resp.Error != pb.NoError {
-			t.logger.Errorf("Error: %s", resp.Error.String())
+			if t.errorLogLimiter.Allow() {
+				t.logger.Errorf("Error: %s", resp.Error.String())
+			}
 			results = t.addFailedMessage(results, msg)
 			continue
 		}
 
 		err = stream.CloseSend()
 		if err != nil {
-			t.logger.Errorf("Can't close stream: %s", err.Error())
+			if t.errorLogLimiter.Allow() {
+				t.logger.Errorf("Can't close stream: %s", err.Error())
+			}
 		}
 	}
 
