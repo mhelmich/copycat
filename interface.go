@@ -136,6 +136,7 @@ type membershipProxy interface {
 	stepRaft(ctx context.Context, msg raftpb.Message) error
 	addToRaftGroup(ctx context.Context, existingRaftId uint64, newRaftId uint64) error
 	addRaftToGroupRemotely(newRaftId uint64, peers *pb.Peer) error
+	stopRaftRemotely(peer pb.Peer) error
 	stop() error
 }
 

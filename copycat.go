@@ -124,9 +124,12 @@ func (c *copyCatImpl) startNewRaftGroup(dataStructureId uint64, numReplicas int,
 		peersString[idx] = peer.String()
 	}
 	c.logger.Infof("Started %d remote rafts: %s", len(remoteRafts), strings.Join(peersString, ", "))
+
 	localRaft, err := c.membership.newInteractiveRaftBackend(dataStructureId, c.config, remoteRafts, provider)
 	if err != nil {
-		// TODO: shutdown other remote rafts...their are just dangling in the nothing so far
+		for _, peer := range remoteRafts {
+			defer c.membership.stopRaftRemotely(peer)
+		}
 		return nil, err
 	}
 

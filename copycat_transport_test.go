@@ -25,6 +25,7 @@ import (
 
 	"github.com/mhelmich/copycat/pb"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 
 	"github.com/coreos/etcd/raft/raftpb"
@@ -119,8 +120,9 @@ func TestTransportReportFailures(t *testing.T) {
 	mockMemberProxy.On("getRaftTransportServiceClientForRaftId", mock.Anything).Return(mockClient, nil)
 
 	transport := &copyCatTransport{
-		membership: mockMemberProxy,
-		logger:     log.WithFields(log.Fields{}),
+		membership:      mockMemberProxy,
+		errorLogLimiter: rate.NewLimiter(10.0, 10),
+		logger:          log.WithFields(log.Fields{}),
 	}
 
 	msgs := make([]raftpb.Message, 2)

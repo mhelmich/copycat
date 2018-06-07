@@ -234,3 +234,17 @@ func (_m *mockMembershipProxy) stopRaft(raftId uint64) error {
 
 	return r0
 }
+
+// stopRaftRemotely provides a mock function with given fields: peer
+func (_m *mockMembershipProxy) stopRaftRemotely(peer pb.Peer) error {
+	ret := _m.Called(peer)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(pb.Peer) error); ok {
+		r0 = rf(peer)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
