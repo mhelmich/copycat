@@ -111,7 +111,7 @@ func TestTransportReportFailures(t *testing.T) {
 	// succeeds and hence needs all subsequent calls as well
 	mockStream.On("Send", mock.MatchedBy(func(req *pb.SendReq) bool { return req.Message.To == snapMessage })).Return(nil)
 	mockStream.On("Send", mock.MatchedBy(func(req *pb.SendReq) bool { return req.Message.To == succeededNonSnapMessage })).Return(nil)
-	mockStream.On("Recv").Return(&pb.SendResp{Error: pb.NoError}, nil)
+	mockStream.On("Recv").Return(&pb.SendResp{}, nil)
 	mockStream.On("CloseSend").Return(nil)
 
 	mockClient := new(mockRaftTransportServiceClient)

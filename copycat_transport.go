@@ -110,12 +110,13 @@ func (t *copyCatTransport) Send(stream pb.RaftTransportService_SendServer) error
 
 		err = t.membership.stepRaft(stream.Context(), *request.Message)
 		if err != nil {
-			t.logger.Errorf("Invoking raft backend with id [%d] failed: %s", request.Message.To, err.Error())
+			err = fmt.Errorf("Invoking raft backend with id [%d] failed: %s", request.Message.To, err.Error())
+			t.logger.Errorf("%s", err.Error())
 			// TODO - figure out error handling
-			stream.Send(&pb.SendResp{Error: pb.NoError})
+			stream.Send(&pb.SendResp{Error: err.Error()})
 		}
 
-		stream.Send(&pb.SendResp{Error: pb.NoError})
+		stream.Send(&pb.SendResp{})
 	}
 }
 
@@ -160,9 +161,9 @@ func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) *messageSendingRe
 			}
 			results = t.addFailedMessage(results, msg)
 			continue
-		} else if resp.Error != pb.NoError {
+		} else if resp.Error != "" {
 			if t.errorLogLimiter.Allow() {
-				t.logger.Errorf("Error: %s", resp.Error.String())
+				t.logger.Errorf("Error: %s", resp.Error)
 			}
 			results = t.addFailedMessage(results, msg)
 			continue
