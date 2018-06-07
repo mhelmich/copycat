@@ -209,6 +209,8 @@ func TestRaftBackendAddNewRaftToExistingGroup(t *testing.T) {
 	assert.Nil(t, err)
 	err = os.RemoveAll(config3.CopyCatDataDir)
 	assert.Nil(t, err)
+	err = os.RemoveAll(config4.CopyCatDataDir)
+	assert.Nil(t, err)
 }
 
 func TestRaftBackendTriggerSnapshot(t *testing.T) {
