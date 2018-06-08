@@ -318,13 +318,11 @@ func TestRaftBackendAddRaftToGroup(t *testing.T) {
 	node.AssertNumberOfCalls(t, "ProposeConfChange", 1)
 }
 
-// TODO figure this out
-func _TestRaftBackendFailover(t *testing.T) {
-	// log.SetLevel(log.DebugLevel)
+func TestRaftBackendFailover(t *testing.T) {
 	fakeTransport := newFakeTransport()
 
 	config1 := DefaultConfig()
-	config1.CopyCatDataDir = "./test-_TestRaftBackendFailover-" + uint64ToString(randomRaftId()) + "/"
+	config1.CopyCatDataDir = "./test-TestRaftBackendFailover-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	config1.CopyCatPort = config1.CopyCatPort + 22222
@@ -338,7 +336,7 @@ func _TestRaftBackendFailover(t *testing.T) {
 	assert.NotNil(t, detachedBackend1)
 
 	config2 := DefaultConfig()
-	config2.CopyCatDataDir = "./test-_TestRaftBackendFailover-" + uint64ToString(randomRaftId()) + "/"
+	config2.CopyCatDataDir = "./test-TestRaftBackendFailover-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	config2.CopyCatPort = config1.CopyCatPort + 1111
@@ -352,7 +350,7 @@ func _TestRaftBackendFailover(t *testing.T) {
 	assert.NotNil(t, detachedBackend2)
 
 	config3 := DefaultConfig()
-	config3.CopyCatDataDir = "./test-_TestRaftBackendFailover-" + uint64ToString(randomRaftId()) + "/"
+	config3.CopyCatDataDir = "./test-TestRaftBackendFailover-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config3.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	config3.CopyCatPort = config2.CopyCatPort + 1111
@@ -385,17 +383,24 @@ func _TestRaftBackendFailover(t *testing.T) {
 	assert.Equal(t, world, bites)
 
 	master := findLeaderBackend(detachedBackend1, detachedBackend2, interactiveBackend)
-	log.Infof("Found leader: %d %x", master.raftId, master.raftId)
+	assert.NotNil(t, master)
+	followers := findAllFollowers(detachedBackend1, detachedBackend2, interactiveBackend)
+	assert.Equal(t, 2, len(followers))
 	master.stop()
+	log.Infof("Stopped leader: %d %x", master.raftId, master.raftId)
 
-	// time.Sleep(1 * time.Second)
-	// aFollower := findOneFollowerBackend(detachedBackend1, detachedBackend2, interactiveBackend)
-	// aFollower.raftNode.Campaign(context.TODO())
-	time.Sleep(10 * time.Second)
+	// HACK
+	// elections happen after a second or so
+	time.Sleep(2 * time.Second)
 
-	detachedBackend1.stop()
-	detachedBackend2.stop()
-	interactiveBackend.stop()
+	master = findLeaderBackend(detachedBackend1, detachedBackend2, interactiveBackend)
+	assert.NotNil(t, master)
+	followers = findAllFollowers(detachedBackend1, detachedBackend2, interactiveBackend)
+	assert.Equal(t, 2, len(followers))
+
+	for _, b := range followers {
+		b.stop()
+	}
 
 	err = os.RemoveAll(config1.CopyCatDataDir)
 	assert.Nil(t, err)
@@ -414,13 +419,14 @@ func findLeaderBackend(backends ...*raftBackend) *raftBackend {
 	return nil
 }
 
-func findOneFollowerBackend(backends ...*raftBackend) *raftBackend {
+func findAllFollowers(backends ...*raftBackend) []*raftBackend {
+	a := make([]*raftBackend, 0)
 	for _, b := range backends {
 		if b.raftNode.Status().RaftState == raft.StateFollower {
-			return b
+			a = append(a, b)
 		}
 	}
-	return nil
+	return a
 }
 
 func newFakeTransport() *fakeTransport {
@@ -438,6 +444,7 @@ func (ft *fakeTransport) add(rb *raftBackend) {
 }
 
 func (ft *fakeTransport) sendMessages(msgs []raftpb.Message) *messageSendingResults {
+	var results *messageSendingResults
 	for _, msg := range msgs {
 		val, ok := ft.backends.Load(msg.To)
 		rb := val.(*raftBackend)
@@ -448,8 +455,14 @@ func (ft *fakeTransport) sendMessages(msgs []raftpb.Message) *messageSendingResu
 		err := rb.step(context.TODO(), msg)
 		if err != nil {
 			log.Errorf("Error stepping in raft %d %x: %s", msg.To, msg.To, err.Error())
+			if results == nil {
+				results = &messageSendingResults{
+					failedMessages: make([]raftpb.Message, 0),
+				}
+				results.failedMessages = append(results.failedMessages, msg)
+			}
 		}
 	}
 
-	return nil
+	return results
 }
