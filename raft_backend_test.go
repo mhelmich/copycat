@@ -390,7 +390,7 @@ func TestRaftBackendFailover(t *testing.T) {
 	log.Infof("Stopped leader: %d %x", master.raftId, master.raftId)
 
 	// HACK
-	// elections happen after a second or so
+	// elections happen after a second (10 ticks à 100ms +/- random) or so
 	time.Sleep(2 * time.Second)
 
 	master = findLeaderBackend(detachedBackend1, detachedBackend2, interactiveBackend)
