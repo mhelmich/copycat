@@ -459,8 +459,8 @@ func (ft *fakeTransport) sendMessages(msgs []raftpb.Message) *messageSendingResu
 				results = &messageSendingResults{
 					failedMessages: make([]raftpb.Message, 0),
 				}
-				results.failedMessages = append(results.failedMessages, msg)
 			}
+			results.failedMessages = append(results.failedMessages, msg)
 		}
 	}
 
