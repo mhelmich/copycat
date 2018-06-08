@@ -384,10 +384,6 @@ func (rb *raftBackend) bakeNewSnapshot(data []byte) (raftpb.Snapshot, error) {
 }
 
 func (rb *raftBackend) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry) {
-	if !rb.isInteractive {
-		return
-	}
-
 	if len(ents) == 0 {
 		return
 	}
@@ -412,7 +408,9 @@ func (rb *raftBackend) publishEntries(ents []raftpb.Entry) bool {
 	for idx := range ents {
 		switch ents[idx].Type {
 		case raftpb.EntryNormal:
-			if len(ents[idx].Data) > 0 {
+			// if this node is detached (aka not interactive)
+			// don't send anything to the commit channel
+			if rb.isInteractive && len(ents[idx].Data) > 0 {
 				// ignore empty messages
 				select {
 				case rb.commitChan <- ents[idx].Data:
