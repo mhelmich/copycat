@@ -215,6 +215,9 @@ func (rb *raftBackend) serveProposalChannels() {
 			if err != nil {
 				rb.logger.Errorf("Failed to propose change to raft: %s", err.Error())
 			}
+
+		case <-rb.stopChan:
+			return
 		}
 	}
 }
@@ -258,7 +261,7 @@ func (rb *raftBackend) runRaftStateMachine() {
 // store raft entries and hard state, then publish changes over commit channel
 // Returning false will stop the raft state machine!
 func (rb *raftBackend) procesReady(rd raft.Ready) bool {
-	rb.logger.Debugf("ID: %x Hardstate: %v Entries: %v Snapshot: %v Messages: %v Committed: %v", rb.raftId, rd.HardState, rd.Entries, rd.Snapshot, rd.Messages, rd.CommittedEntries)
+	rb.logger.Debugf("ID:%d %x Hardstate: %v Entries: %v Snapshot: %v Messages: %v Committed: %v", rb.raftId, rb.raftId, rd.HardState, rd.Entries, rd.Snapshot, rd.Messages, rd.CommittedEntries)
 	rb.store.saveEntriesAndState(rd.Entries, rd.HardState)
 
 	if !raft.IsEmptySnap(rd.Snapshot) {
