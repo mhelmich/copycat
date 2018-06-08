@@ -97,7 +97,8 @@ func newDetachedRaftBackendWithId(newRaftId uint64, config *Config) (*raftBacken
 func _newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider SnapshotProvider, isInteractive bool) (*raftBackend, error) {
 	logger := config.logger.WithFields(log.Fields{
 		"component": "raftBackend",
-		"raftId":    hex.EncodeToString(uint64ToBytes(newRaftId)),
+		"raftIdHex": hex.EncodeToString(uint64ToBytes(newRaftId)),
+		"raftId":    uint64ToString(newRaftId),
 	})
 
 	storeDir := config.CopyCatDataDir + "raft-" + uint64ToString(newRaftId) + "/"
