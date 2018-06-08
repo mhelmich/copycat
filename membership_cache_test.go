@@ -76,11 +76,12 @@ func TestMembershipCacheCreateDetachedRaftStepStop(t *testing.T) {
 
 	mockRaftNode := new(mockRaftNode)
 	mockRaftNode.On("Step", mock.Anything, msg).Return(nil)
-	mockRaftNode.On("Stop").Return()
+	mockRaftNode.On("ProposeConfChange", mock.Anything, mock.Anything).Return(nil)
 
 	mockBackend := &raftBackend{
 		raftId:   raftId,
 		raftNode: mockRaftNode,
+		logger:   log.WithFields(log.Fields{}),
 		stopChan: make(chan struct{}, 1),
 	}
 
@@ -108,7 +109,7 @@ func TestMembershipCacheCreateDetachedRaftStepStop(t *testing.T) {
 	mockRaftNode.AssertNumberOfCalls(t, "Step", 1)
 
 	mc.stopRaft(raftId)
-	mockRaftNode.AssertNumberOfCalls(t, "Stop", 1)
+	mockRaftNode.AssertNumberOfCalls(t, "ProposeConfChange", 1)
 }
 
 func TestMembershipCacheCreateInteractiveRaftStepStop(t *testing.T) {
@@ -124,12 +125,13 @@ func TestMembershipCacheCreateInteractiveRaftStepStop(t *testing.T) {
 
 	mockRaftNode := new(mockRaftNode)
 	mockRaftNode.On("Step", mock.Anything, msg).Return(nil)
-	mockRaftNode.On("Stop").Return()
+	mockRaftNode.On("ProposeConfChange", mock.Anything, mock.Anything).Return(nil)
 
 	mockBackend := &raftBackend{
 		raftId:   raftId,
 		raftNode: mockRaftNode,
 		stopChan: make(chan struct{}, 1),
+		logger:   log.WithFields(log.Fields{}),
 	}
 
 	mc := &membershipCache{
@@ -153,6 +155,7 @@ func TestMembershipCacheCreateInteractiveRaftStepStop(t *testing.T) {
 	// test stop via stopping the entire cache
 	err = mc.stop()
 	assert.Nil(t, err)
+	mockRaftNode.AssertNumberOfCalls(t, "ProposeConfChange", 1)
 }
 
 func TestMembershipCacheStartRaftGroup(t *testing.T) {

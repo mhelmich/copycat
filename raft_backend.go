@@ -97,8 +97,7 @@ func newDetachedRaftBackendWithId(newRaftId uint64, config *Config) (*raftBacken
 func _newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider SnapshotProvider, isInteractive bool) (*raftBackend, error) {
 	logger := config.logger.WithFields(log.Fields{
 		"component": "raftBackend",
-		"raftId":    uint64ToString(newRaftId),
-		"raftIdHex": hex.EncodeToString(uint64ToBytes(newRaftId)),
+		"raftId":    hex.EncodeToString(uint64ToBytes(newRaftId)),
 	})
 
 	storeDir := config.CopyCatDataDir + "raft-" + uint64ToString(newRaftId) + "/"
@@ -245,7 +244,7 @@ func (rb *raftBackend) runRaftStateMachine() {
 		case rd := <-rb.raftNode.Ready():
 			if !rb.procesReady(rd) {
 				rb.logger.Error("Publishing committed entries failed. Shutting down...")
-				rb.stop()
+				rb._stop()
 				return
 			}
 
@@ -259,7 +258,7 @@ func (rb *raftBackend) runRaftStateMachine() {
 // store raft entries and hard state, then publish changes over commit channel
 // Returning false will stop the raft state machine!
 func (rb *raftBackend) procesReady(rd raft.Ready) bool {
-	rb.logger.Debugf("ID: %d %x Hardstate: %v Entries: %v Snapshot: %v Messages: %v Committed: %v", rb.raftId, rb.raftId, rd.HardState, rd.Entries, rd.Snapshot, rd.Messages, rd.CommittedEntries)
+	rb.logger.Debugf("ID: %x Hardstate: %v Entries: %v Snapshot: %v Messages: %v Committed: %v", rb.raftId, rd.HardState, rd.Entries, rd.Snapshot, rd.Messages, rd.CommittedEntries)
 	rb.store.saveEntriesAndState(rd.Entries, rd.HardState)
 
 	if !raft.IsEmptySnap(rd.Snapshot) {
@@ -459,7 +458,7 @@ func (rb *raftBackend) addRaftToMyGroup(ctx context.Context, newRaftId uint64) e
 	return rb.raftNode.ProposeConfChange(ctx, cc)
 }
 
-func (rb *raftBackend) stop() {
+func (rb *raftBackend) _stop() {
 	// stop the raft node
 	rb.raftNode.Stop()
 	// stop the raft state machine
@@ -472,5 +471,22 @@ func (rb *raftBackend) stop() {
 
 	if rb.errorChan != nil {
 		close(rb.errorChan)
+	}
+}
+
+func (rb *raftBackend) stop() {
+	rb.logger.Debugf("Shutting down raft backend %x", rb.raftId)
+	// this is an interesting idea
+	// removing myself out of a raft group will make this raft node shut down
+	// evatually after the conf change has been committed
+	// after the raft state machine processed this change, _stop() is being called
+	// this way the node is removed the most graceful way possible out of the group
+	err := rb.raftNode.ProposeConfChange(context.TODO(), raftpb.ConfChange{
+		Type:   raftpb.ConfChangeRemoveNode,
+		NodeID: rb.raftId,
+		ID:     rb.latestConfChangeId,
+	})
+	if err != nil {
+		rb.logger.Errorf("Can't remove myself out of raft group: %s", err.Error())
 	}
 }
