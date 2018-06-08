@@ -323,7 +323,7 @@ func TestRaftBackendGracefulShutdownFailover(t *testing.T) {
 	fakeTransport := newFakeTransport()
 
 	config1 := DefaultConfig()
-	config1.CopyCatDataDir = "./test-TestRaftBackendFailover-" + uint64ToString(randomRaftId()) + "/"
+	config1.CopyCatDataDir = "./test-TestRaftBackendGracefulShutdownFailover-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	config1.CopyCatPort = config1.CopyCatPort + 22222
@@ -337,7 +337,7 @@ func TestRaftBackendGracefulShutdownFailover(t *testing.T) {
 	assert.NotNil(t, detachedBackend1)
 
 	config2 := DefaultConfig()
-	config2.CopyCatDataDir = "./test-TestRaftBackendFailover-" + uint64ToString(randomRaftId()) + "/"
+	config2.CopyCatDataDir = "./test-TestRaftBackendGracefulShutdownFailover-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	config2.CopyCatPort = config1.CopyCatPort + 1111
@@ -351,7 +351,7 @@ func TestRaftBackendGracefulShutdownFailover(t *testing.T) {
 	assert.NotNil(t, detachedBackend2)
 
 	config3 := DefaultConfig()
-	config3.CopyCatDataDir = "./test-TestRaftBackendFailover-" + uint64ToString(randomRaftId()) + "/"
+	config3.CopyCatDataDir = "./test-TestRaftBackendGracefulShutdownFailover-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config3.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	config3.CopyCatPort = config2.CopyCatPort + 1111
@@ -415,7 +415,7 @@ func TestRaftBackendSplitBrainFailover(t *testing.T) {
 	fakeTransport := newFakeTransport()
 
 	config1 := DefaultConfig()
-	config1.CopyCatDataDir = "./test-TestRaftBackendFailover-" + uint64ToString(randomRaftId()) + "/"
+	config1.CopyCatDataDir = "./test-TestRaftBackendSplitBrainFailover-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	config1.CopyCatPort = config1.CopyCatPort + 22222
@@ -429,7 +429,7 @@ func TestRaftBackendSplitBrainFailover(t *testing.T) {
 	assert.NotNil(t, detachedBackend1)
 
 	config2 := DefaultConfig()
-	config2.CopyCatDataDir = "./test-TestRaftBackendFailover-" + uint64ToString(randomRaftId()) + "/"
+	config2.CopyCatDataDir = "./test-TestRaftBackendSplitBrainFailover-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	config2.CopyCatPort = config1.CopyCatPort + 1111
@@ -443,7 +443,7 @@ func TestRaftBackendSplitBrainFailover(t *testing.T) {
 	assert.NotNil(t, detachedBackend2)
 
 	config3 := DefaultConfig()
-	config3.CopyCatDataDir = "./test-TestRaftBackendFailover-" + uint64ToString(randomRaftId()) + "/"
+	config3.CopyCatDataDir = "./test-TestRaftBackendSplitBrainFailover-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config3.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	config3.CopyCatPort = config2.CopyCatPort + 1111
