@@ -451,6 +451,13 @@ func (rb *raftBackend) snapshot() ([]byte, error) {
 	return snap.Data, err
 }
 
+// I will need to have a long inner monologue about
+// when to add a voter and when to add a learner.
+// Adding voters comes with the increasing overhead
+// of the raft protocol.
+// Adding learners and never promoting them to
+// voters puts us in danger to lose data.
+// I'll play it save for now and add only voters.
 func (rb *raftBackend) addRaftToMyGroup(ctx context.Context, newRaftId uint64) error {
 	cc := raftpb.ConfChange{
 		Type:   raftpb.ConfChangeAddNode,
