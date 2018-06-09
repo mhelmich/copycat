@@ -129,6 +129,7 @@ func (t *copyCatTransport) sendMessages(msgs []raftpb.Message) *messageSendingRe
 			if t.errorLogLimiter.Allow() {
 				t.logger.Errorf("Can't create raft transport client: %s", err.Error())
 			}
+			results = t.addFailedMessage(results, msg)
 			continue
 		}
 
