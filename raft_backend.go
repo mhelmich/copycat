@@ -453,7 +453,7 @@ func (rb *raftBackend) snapshot() ([]byte, error) {
 
 func (rb *raftBackend) addRaftToMyGroup(ctx context.Context, newRaftId uint64) error {
 	cc := raftpb.ConfChange{
-		Type:   raftpb.ConfChangeAddLearnerNode,
+		Type:   raftpb.ConfChangeAddNode,
 		ID:     rb.latestConfChangeId + 1,
 		NodeID: newRaftId,
 	}
