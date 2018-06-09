@@ -484,7 +484,7 @@ func (rb *raftBackend) _stop() {
 }
 
 func (rb *raftBackend) stop() {
-	rb.logger.Debugf("Shutting down raft backend %x", rb.raftId)
+	rb.logger.Warnf("Shutting down raft backend %d %x", rb.raftId, rb.raftId)
 	// this is an interesting idea
 	// removing myself out of a raft group will make this raft node shut down
 	// evatually after the conf change has been committed
