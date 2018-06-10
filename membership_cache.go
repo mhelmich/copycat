@@ -170,13 +170,14 @@ func (mc *membershipCache) chooseReplicaNode(dataStructureId uint64, numReplicas
 
 	pickedPeerIds := mc.membership.pickFromMetadata(notMePicker, numReplicas, make([]uint64, 0))
 	peerCh := make(chan *pb.Peer)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelFunc()
 	for _, peerId := range pickedPeerIds {
 		addr := mc.membership.getAddressForPeer(peerId)
-		go mc.startRaftRemotely(peerCh, dataStructureId, addr)
+		go mc.startRaftRemotely(ctx, peerCh, dataStructureId, addr)
 	}
 
 	newRafts := make([]pb.Peer, numReplicas)
-	timeout := time.Now().Add(5 * time.Second)
 	j := 0
 
 	for {
@@ -192,7 +193,7 @@ func (mc *membershipCache) chooseReplicaNode(dataStructureId uint64, numReplicas
 				newPickedPeerIds := mc.membership.pickFromMetadata(notMePicker, 1, pickedPeerIds)
 				for _, peerId := range newPickedPeerIds {
 					addr := mc.membership.getAddressForPeer(peerId)
-					go mc.startRaftRemotely(peerCh, dataStructureId, addr)
+					go mc.startRaftRemotely(ctx, peerCh, dataStructureId, addr)
 					//avoid making the same mistake twice
 					pickedPeerIds = append(pickedPeerIds, peerId)
 				}
@@ -206,7 +207,7 @@ func (mc *membershipCache) chooseReplicaNode(dataStructureId uint64, numReplicas
 				}
 
 			}
-		case <-time.After(time.Until(timeout)):
+		case <-ctx.Done():
 			return newRafts[:j], errCantFindEnoughReplicas
 		}
 	}
@@ -233,7 +234,7 @@ func (mc *membershipCache) addRaftToGroupRemotely(newRaftId uint64, peer *pb.Pee
 	return nil
 }
 
-func (mc *membershipCache) startRaftRemotely(peerCh chan *pb.Peer, dataStructureId uint64, address string) {
+func (mc *membershipCache) startRaftRemotely(ctx context.Context, peerCh chan *pb.Peer, dataStructureId uint64, address string) {
 	if mc.myAddress == address || address == "" {
 		// signal to the listener that we need to retry another peer
 		peerCh <- nil
@@ -247,7 +248,7 @@ func (mc *membershipCache) startRaftRemotely(peerCh chan *pb.Peer, dataStructure
 		return
 	}
 
-	resp, err := client.StartRaft(context.TODO(), &pb.StartRaftRequest{DataStructureId: dataStructureId})
+	resp, err := client.StartRaft(ctx, &pb.StartRaftRequest{DataStructureId: dataStructureId})
 	if err != nil {
 		mc.logger.Errorf("Can't start a raft at %s: %s", address, err.Error())
 		// signal to the listener that we need to retry another peer
