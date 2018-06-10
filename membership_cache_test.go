@@ -239,6 +239,56 @@ func TestMembershipCacheStartRaftGroup(t *testing.T) {
 	mockClient2.AssertNumberOfCalls(t, "StopRaft", 1)
 }
 
+func TestMembershipCacheStartRaftGroupWithFailure(t *testing.T) {
+	pickedPeers := make([]uint64, 2)
+	pickedPeers[0] = uint64(12)
+	pickedPeers[1] = uint64(24)
+
+	networkAddress := "555_Fake_Street"
+
+	mockMembership := new(mockMemberList)
+	mockMembership.On("pickFromMetadata", mock.Anything, 1, make([]uint64, 0)).Return(pickedPeers[:1])
+	mockMembership.On("pickFromMetadata", mock.Anything, 1, pickedPeers[:1]).Return(pickedPeers[1:2])
+	mockMembership.On("getAddressForPeer", pickedPeers[0]).Return("")
+	mockMembership.On("getAddressForPeer", pickedPeers[1]).Return(networkAddress)
+
+	resp := &pb.StartRaftResponse{
+		RaftId:      uint64(88),
+		RaftAddress: networkAddress,
+	}
+
+	mockClient := new(mockCopyCatServiceClient)
+	mockClient.On("StartRaft", mock.Anything, mock.Anything).Return(resp, nil)
+	mockClient.On("StopRaft", mock.Anything, mock.Anything).Return(nil, nil)
+
+	mc := &membershipCache{
+		membership: mockMembership,
+		newCopyCatServiceClientFunc: func(conn *grpc.ClientConn) pb.CopyCatServiceClient {
+			return mockClient
+		},
+		connectionCacheFunc: func(m *sync.Map, address string) (*grpc.ClientConn, error) {
+			return &grpc.ClientConn{}, nil
+		},
+		chooserFunc: func(peerId uint64, tags map[string]string) bool {
+			return true
+		},
+		logger: log.WithFields(log.Fields{}),
+	}
+
+	peers, err := mc.chooseReplicaNode(uint64(33), 1)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(peers))
+	assert.Equal(t, uint64(88), peers[0].Id)
+	assert.Equal(t, networkAddress, peers[0].RaftAddress)
+	mockMembership.AssertNumberOfCalls(t, "pickFromMetadata", 2)
+	mockMembership.AssertNumberOfCalls(t, "getAddressForPeer", 2)
+	mockClient.AssertNumberOfCalls(t, "StartRaft", 1)
+
+	err = mc.stopRaftRemotely(peers[0])
+	assert.Nil(t, err)
+	mockClient.AssertNumberOfCalls(t, "StopRaft", 1)
+}
+
 func TestMembershipCacheCreateConnection(t *testing.T) {
 	config := DefaultConfig()
 	m := new(mockMembershipProxy)

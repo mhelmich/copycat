@@ -187,9 +187,15 @@ func (mc *membershipCache) chooseReplicaNode(dataStructureId uint64, numReplicas
 			}
 
 			if peer == nil {
-				// TODO
 				// I got an empty response from one of the peers I contacted,
 				// let me try another one...
+				newPickedPeerIds := mc.membership.pickFromMetadata(notMePicker, 1, pickedPeerIds)
+				for _, peerId := range newPickedPeerIds {
+					addr := mc.membership.getAddressForPeer(peerId)
+					go mc.startRaftRemotely(peerCh, dataStructureId, addr)
+					//avoid making the same mistake twice
+					pickedPeerIds = append(pickedPeerIds, peerId)
+				}
 			} else {
 
 				// if I got a valid response, put it in the array
