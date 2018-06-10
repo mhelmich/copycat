@@ -16,7 +16,7 @@ type mockRaftTransportServiceClient struct {
 }
 
 // Send provides a mock function with given fields: ctx, opts
-func (_m *mockRaftTransportServiceClient) Send(ctx context.Context, opts ...grpc.CallOption) (pb.RaftTransportService_SendClient, error) {
+func (_m *mockRaftTransportServiceClient) Step(ctx context.Context, opts ...grpc.CallOption) (pb.RaftTransportService_StepClient, error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -26,12 +26,12 @@ func (_m *mockRaftTransportServiceClient) Send(ctx context.Context, opts ...grpc
 	_ca = append(_ca, _va...)
 	ret := _m.Called(_ca...)
 
-	var r0 pb.RaftTransportService_SendClient
-	if rf, ok := ret.Get(0).(func(context.Context, ...grpc.CallOption) pb.RaftTransportService_SendClient); ok {
+	var r0 pb.RaftTransportService_StepClient
+	if rf, ok := ret.Get(0).(func(context.Context, ...grpc.CallOption) pb.RaftTransportService_StepClient); ok {
 		r0 = rf(ctx, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(pb.RaftTransportService_SendClient)
+			r0 = ret.Get(0).(pb.RaftTransportService_StepClient)
 		}
 	}
 

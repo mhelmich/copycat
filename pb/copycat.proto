@@ -83,14 +83,14 @@ message HostedItems {
 // SECTION FOR THE RAFT TRANSPORT
 
 service RaftTransportService {
-  rpc Send(stream SendReq) returns (stream SendResp) {}
+  rpc Step(stream StepReq) returns (stream StepResp) {}
 }
 
-message SendReq {
+message StepReq {
   raftpb.Message Message = 1;
 }
 
-message SendResp {
+message StepResp {
   string Error = 1;
 }
 

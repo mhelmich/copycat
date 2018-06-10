@@ -105,17 +105,17 @@ func TestTransportReportFailures(t *testing.T) {
 	snapMessage := uint64(88)
 	succeededNonSnapMessage := uint64(111)
 
-	mockStream := new(mockRaftTransportService_SendClient)
+	mockStream := new(mockRaftTransportService_StepClient)
 	// fails for all nodes to failed message
-	mockStream.On("Send", mock.MatchedBy(func(req *pb.SendReq) bool { return req.Message.To == failedMessage })).Return(fmt.Errorf("BOOOM!"))
+	mockStream.On("Send", mock.MatchedBy(func(req *pb.StepReq) bool { return req.Message.To == failedMessage })).Return(fmt.Errorf("BOOOM!"))
 	// succeeds and hence needs all subsequent calls as well
-	mockStream.On("Send", mock.MatchedBy(func(req *pb.SendReq) bool { return req.Message.To == snapMessage })).Return(nil)
-	mockStream.On("Send", mock.MatchedBy(func(req *pb.SendReq) bool { return req.Message.To == succeededNonSnapMessage })).Return(nil)
-	mockStream.On("Recv").Return(&pb.SendResp{}, nil)
+	mockStream.On("Send", mock.MatchedBy(func(req *pb.StepReq) bool { return req.Message.To == snapMessage })).Return(nil)
+	mockStream.On("Send", mock.MatchedBy(func(req *pb.StepReq) bool { return req.Message.To == succeededNonSnapMessage })).Return(nil)
+	mockStream.On("Recv").Return(&pb.StepResp{}, nil)
 	mockStream.On("CloseSend").Return(nil)
 
 	mockClient := new(mockRaftTransportServiceClient)
-	mockClient.On("Send", mock.Anything).Return(mockStream, nil)
+	mockClient.On("Step", mock.Anything).Return(mockStream, nil)
 	mockMemberProxy := new(mockMembershipProxy)
 	mockMemberProxy.On("getRaftTransportServiceClientForRaftId", mock.Anything).Return(mockClient, nil)
 
