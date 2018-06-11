@@ -26,24 +26,24 @@ import (
 )
 
 func TestUlidBasic(t *testing.T) {
-	ulid1, err := newUlid()
+	ulid1, err := newId()
 	assert.Nil(t, err)
 	bites1, err := ulid1.toBytes()
 	assert.Nil(t, err)
-	ulid2, err := parseUlid(bites1)
+	ulid2, err := parseId(bites1)
 	assert.Nil(t, err)
 	assert.Equal(t, ulid1.String(), ulid2.String())
 	log.Infof("%s %s", ulid1.String(), ulid2.String())
-	ulid3, err := parseUlidFromString(ulid1.String())
+	ulid3, err := parseIdFromString(ulid1.String())
 	assert.Nil(t, err)
-	assert.Equal(t, 0, ulid1.compareTo(ulid3))
+	assert.Equal(t, 0, ulid1.CompareTo(ulid3))
 
 	// make the time break over
 	time.Sleep(time.Millisecond)
 
-	ulid4, err := newUlid()
+	ulid4, err := newId()
 	assert.Nil(t, err)
-	assert.True(t, ulid1.compareTo(ulid4) < 0)
+	assert.True(t, ulid1.CompareTo(ulid4) < 0)
 	log.Infof("%s %s", ulid1.String(), ulid4.String())
 }
 

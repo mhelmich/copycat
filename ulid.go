@@ -56,6 +56,7 @@ package copycat
 import (
 	"bytes"
 	"crypto/rand"
+	"fmt"
 
 	"github.com/mhelmich/copycat/pb"
 )
@@ -99,8 +100,8 @@ var dec = [...]byte{
 	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 }
 
-func newUlid() (ulid, error) {
-	var id ulid
+func newId() (ID, error) {
+	var id ID
 	now := nowUnixUtc()
 
 	id[0] = byte(now >> 40)
@@ -114,8 +115,8 @@ func newUlid() (ulid, error) {
 	return id, err
 }
 
-func parseUlid(bites []byte) (ulid, error) {
-	var id ulid
+func parseId(bites []byte) (ID, error) {
+	var id ID
 	id128 := &pb.Id128{}
 	err := id128.Unmarshal(bites)
 	if err != nil {
@@ -135,8 +136,15 @@ func parseUlid(bites []byte) (ulid, error) {
 	return id, nil
 }
 
-func parseUlidFromString(v string) (ulid, error) {
-	var id ulid
+func parseIdFromString(v string) (ID, error) {
+	var id ID
+	if len(v) != encodedSize {
+		return id, fmt.Errorf("Value can't be encoded")
+	}
+
+	if v[0] > '7' {
+		return id, fmt.Errorf("Buffer overflow")
+	}
 
 	// 6 bytes timestamp (48 bits)
 	id[0] = ((dec[v[0]] << 5) | dec[v[1]])
@@ -161,12 +169,12 @@ func parseUlidFromString(v string) (ulid, error) {
 	return id, nil
 }
 
-type ulid [16]byte
+type ID [16]byte
 
 // String returns a lexicographically sortable string encoded ULID
-// (26 characters, non-standard base 32) e.g. 01AN4Z07BY79KA1307SR9X4MV3
+// (26 characters, non-standard base 32) e.g. 01CFR5R4JJE9KNRAJFFEAQ2SAJ
 // Format: tttttttttteeeeeeeeeeeeeeee where t is time and e is entropy
-func (id ulid) String() string {
+func (id ID) String() string {
 	bites := make([]byte, encodedSize)
 
 	// 10 byte timestamp
@@ -202,7 +210,7 @@ func (id ulid) String() string {
 	return string(bites)
 }
 
-func (id ulid) toBytes() ([]byte, error) {
+func (id ID) toBytes() ([]byte, error) {
 	id128 := &pb.Id128{
 		Upper: bytesToUint64(id[:8]),
 		Lower: bytesToUint64(id[8:]),
@@ -211,8 +219,8 @@ func (id ulid) toBytes() ([]byte, error) {
 	return id128.Marshal()
 }
 
-// Compare returns an integer comparing id and other lexicographically
-// The result will be 0 if id==other, -1 if id < other, and +1 if id > other
-func (id ulid) compareTo(other ulid) int {
+// CompareTo returns an integer comparing id and other lexicographically.
+// The result will be 0 if id==other, -1 if id < other, and +1 if id > other.
+func (id ID) CompareTo(other ID) int {
 	return bytes.Compare(id[:], other[:])
 }
