@@ -96,15 +96,15 @@ func (mc *membershipCache) addToRaftGroup(ctx context.Context, existingRaftId ui
 	return nil
 }
 
-func (mc *membershipCache) peersForDataStructureId(dataStructureId uint64) []pb.Peer {
+func (mc *membershipCache) peersForDataStructureId(dataStructureId ID) []pb.Peer {
 	return mc.membership.peersForDataStructureId(dataStructureId)
 }
 
-func (mc *membershipCache) onePeerForDataStructureId(dataStructureId uint64) (*pb.Peer, error) {
+func (mc *membershipCache) onePeerForDataStructureId(dataStructureId ID) (*pb.Peer, error) {
 	return mc.membership.onePeerForDataStructureId(dataStructureId)
 }
 
-func (mc *membershipCache) newDetachedRaftBackend(dataStructureId uint64, raftId uint64, config *Config) (*raftBackend, error) {
+func (mc *membershipCache) newDetachedRaftBackend(dataStructureId ID, raftId uint64, config *Config) (*raftBackend, error) {
 	backend, err := mc.newDetachedRaftBackendWithIdFunc(raftId, config)
 	if err != nil {
 		return nil, err
@@ -114,7 +114,7 @@ func (mc *membershipCache) newDetachedRaftBackend(dataStructureId uint64, raftId
 	return backend, err
 }
 
-func (mc *membershipCache) newInteractiveRaftBackend(dataStructureId uint64, config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
+func (mc *membershipCache) newInteractiveRaftBackend(dataStructureId ID, config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
 	backend, err := mc.newInteractiveRaftBackendFunc(config, peers, provider)
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func (mc *membershipCache) newInteractiveRaftBackend(dataStructureId uint64, con
 	return backend, err
 }
 
-func (mc *membershipCache) newInteractiveRaftBackendForExistingGroup(dataStructureId uint64, config *Config, provider SnapshotProvider) (*raftBackend, error) {
+func (mc *membershipCache) newInteractiveRaftBackendForExistingGroup(dataStructureId ID, config *Config, provider SnapshotProvider) (*raftBackend, error) {
 	backend, err := mc.newInteractiveRaftBackendForExistingGroupFunc(config, provider)
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (mc *membershipCache) newInteractiveRaftBackendForExistingGroup(dataStructu
 	return backend, err
 }
 
-func (mc *membershipCache) stashRaftBackend(dataStructureId uint64, backend *raftBackend) error {
+func (mc *membershipCache) stashRaftBackend(dataStructureId ID, backend *raftBackend) error {
 	_, loaded := mc.raftIdToRaftBackend.LoadOrStore(backend.raftId, backend)
 	if loaded {
 		defer backend.stop()
@@ -163,7 +163,7 @@ func (mc *membershipCache) getRaftTransportClientForRaftId(raftId uint64) (pb.Ra
 	return mc.newRaftTransportServiceClient(mc.addressToConnection, addr)
 }
 
-func (mc *membershipCache) chooseReplicaNode(dataStructureId uint64, numReplicas int) ([]pb.Peer, error) {
+func (mc *membershipCache) chooseReplicaNode(dataStructureId ID, numReplicas int) ([]pb.Peer, error) {
 	notMePicker := func(peerId uint64, tags map[string]string) bool {
 		return peerId != mc.membership.myGossipNodeId() && mc.chooserFunc(peerId, tags)
 	}
@@ -234,7 +234,7 @@ func (mc *membershipCache) addRaftToGroupRemotely(newRaftId uint64, peer *pb.Pee
 	return nil
 }
 
-func (mc *membershipCache) startRaftRemotely(ctx context.Context, peerCh chan *pb.Peer, dataStructureId uint64, address string) {
+func (mc *membershipCache) startRaftRemotely(ctx context.Context, peerCh chan *pb.Peer, dataStructureId ID, address string) {
 	if mc.myAddress == address || address == "" {
 		// signal to the listener that we need to retry another peer
 		peerCh <- nil
@@ -248,7 +248,7 @@ func (mc *membershipCache) startRaftRemotely(ctx context.Context, peerCh chan *p
 		return
 	}
 
-	resp, err := client.StartRaft(ctx, &pb.StartRaftRequest{DataStructureId: dataStructureId})
+	resp, err := client.StartRaft(ctx, &pb.StartRaftRequest{DataStructureId: dataStructureId.toProto()})
 	if err != nil {
 		mc.logger.Errorf("Can't start a raft at %s: %s", address, err.Error())
 		// signal to the listener that we need to retry another peer

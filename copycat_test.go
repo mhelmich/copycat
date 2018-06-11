@@ -38,7 +38,6 @@ func TestCopyCatBasic(t *testing.T) {
 }
 
 func TestCopyCatNewDataStructure(t *testing.T) {
-	newDataStructureId := randomRaftId()
 	config1 := DefaultConfig()
 	config1.Hostname = "127.0.0.1"
 	config1.CopyCatDataDir = "./test-TestCopyCatNewDataStructure-" + uint64ToString(randomRaftId()) + "/"
@@ -61,6 +60,8 @@ func TestCopyCatNewDataStructure(t *testing.T) {
 	cc2, err := newCopyCat(config2)
 	assert.Nil(t, err)
 
+	newDataStructureId, err := cc1.NewDataStructureId()
+	assert.Nil(t, err)
 	proposeChan1, commitChan1, _, _, err := cc1.ConnectToDataStructure(newDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
 
@@ -78,7 +79,6 @@ func TestCopyCatNewDataStructure(t *testing.T) {
 }
 
 func TestCopyCatConnectToExistingDataStructure(t *testing.T) {
-	newDataStructureId := randomRaftId()
 	config1 := DefaultConfig()
 	config1.Hostname = "127.0.0.1"
 	config1.CopyCatDataDir = "./test-TestCopyCatConnectToExistingDataStructure-" + uint64ToString(randomRaftId()) + "/"
@@ -101,6 +101,8 @@ func TestCopyCatConnectToExistingDataStructure(t *testing.T) {
 	cc2, err := newCopyCat(config2)
 	assert.Nil(t, err)
 
+	newDataStructureId, err := cc1.NewDataStructureId()
+	assert.Nil(t, err)
 	proposeChan1, commitChan1, _, _, err := cc1.ConnectToDataStructure(newDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
 

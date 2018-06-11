@@ -75,7 +75,8 @@ func (t *copyCatTransport) StartRaft(ctx context.Context, in *pb.StartRaftReques
 	// A raft backend is started in join mode but without specifying other peers.
 	// It will just sit there and do nothing until a leader with higher term contacts it.
 	// After that the new backend will try to respond to the messages it has been receiving and join the cluster.
-	_, err := t.membership.newDetachedRaftBackend(in.DataStructureId, newRaftId, t.config)
+	dsId, _ := parseIdFromProto(in.DataStructureId)
+	_, err := t.membership.newDetachedRaftBackend(dsId, newRaftId, t.config)
 	if err != nil {
 		t.logger.Errorf("Couldn't create detached raft backend from request [%s]: %s", in.String(), err.Error())
 	}

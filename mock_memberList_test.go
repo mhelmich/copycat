@@ -10,11 +10,11 @@ type mockMemberList struct {
 }
 
 // addDataStructureToRaftIdMapping provides a mock function with given fields: dataStructureId, raftId
-func (_m *mockMemberList) addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error {
+func (_m *mockMemberList) addDataStructureToRaftIdMapping(dataStructureId ID, raftId uint64) error {
 	ret := _m.Called(dataStructureId, raftId)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(uint64, uint64) error); ok {
+	if rf, ok := ret.Get(0).(func(ID, uint64) error); ok {
 		r0 = rf(dataStructureId, raftId)
 	} else {
 		r0 = ret.Error(0)
@@ -66,11 +66,11 @@ func (_m *mockMemberList) myGossipNodeId() uint64 {
 }
 
 // onePeerForDataStructureId provides a mock function with given fields: dataStructureId
-func (_m *mockMemberList) onePeerForDataStructureId(dataStructureId uint64) (*pb.Peer, error) {
+func (_m *mockMemberList) onePeerForDataStructureId(dataStructureId ID) (*pb.Peer, error) {
 	ret := _m.Called(dataStructureId)
 
 	var r0 *pb.Peer
-	if rf, ok := ret.Get(0).(func(uint64) *pb.Peer); ok {
+	if rf, ok := ret.Get(0).(func(ID) *pb.Peer); ok {
 		r0 = rf(dataStructureId)
 	} else {
 		if ret.Get(0) != nil {
@@ -79,7 +79,7 @@ func (_m *mockMemberList) onePeerForDataStructureId(dataStructureId uint64) (*pb
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(uint64) error); ok {
+	if rf, ok := ret.Get(1).(func(ID) error); ok {
 		r1 = rf(dataStructureId)
 	} else {
 		r1 = ret.Error(1)
@@ -89,11 +89,11 @@ func (_m *mockMemberList) onePeerForDataStructureId(dataStructureId uint64) (*pb
 }
 
 // peersForDataStructureId provides a mock function with given fields: dataStructureId
-func (_m *mockMemberList) peersForDataStructureId(dataStructureId uint64) []pb.Peer {
+func (_m *mockMemberList) peersForDataStructureId(dataStructureId ID) []pb.Peer {
 	ret := _m.Called(dataStructureId)
 
 	var r0 []pb.Peer
-	if rf, ok := ret.Get(0).(func(uint64) []pb.Peer); ok {
+	if rf, ok := ret.Get(0).(func(ID) []pb.Peer); ok {
 		r0 = rf(dataStructureId)
 	} else {
 		if ret.Get(0) != nil {

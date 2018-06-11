@@ -38,7 +38,9 @@ func TestMembershipBasic(t *testing.T) {
 	m, err := newMembership(config)
 	assert.Nil(t, err)
 
-	err = m.addDataStructureToRaftIdMapping(123, 456)
+	dataStructureId, err := newId()
+	assert.Nil(t, err)
+	err = m.addDataStructureToRaftIdMapping(dataStructureId, 456)
 	assert.Nil(t, err)
 
 	err = m.stop()
@@ -82,15 +84,17 @@ func TestMembershipNodeJoin(t *testing.T) {
 		memberIdToTags:           &sync.Map{},
 		serfTagMutex:             &sync.Mutex{},
 		raftIdToAddress:          make(map[uint64]string),
-		dataStructureIdToRaftIds: make(map[uint64]map[uint64]bool),
+		dataStructureIdToRaftIds: make(map[ID]map[uint64]bool),
 		logger: log.WithFields(log.Fields{}),
 	}
 
 	memberId1 := uint64ToString(randomRaftId())
 	hostname1 := "machine1"
 	port1 := 9876
-	mapping1 := make(map[uint64]uint64)
-	mapping1[55] = 66
+	dataStructureId, err := newId()
+	assert.Nil(t, err)
+	mapping1 := make(map[string]uint64)
+	mapping1[dataStructureId.String()] = 66
 	hi1 := &pb.HostedItems{
 		DataStructureToRaftMapping: mapping1,
 	}
@@ -98,8 +102,8 @@ func TestMembershipNodeJoin(t *testing.T) {
 	memberId2 := uint64ToString(randomRaftId())
 	hostname2 := "machine2"
 	port2 := 9877
-	mapping2 := make(map[uint64]uint64)
-	mapping2[55] = 88
+	mapping2 := make(map[string]uint64)
+	mapping2[dataStructureId.String()] = 88
 	hi2 := &pb.HostedItems{
 		DataStructureToRaftMapping: mapping2,
 	}
@@ -129,7 +133,7 @@ func TestMembershipNodeJoin(t *testing.T) {
 	assert.Equal(t, "machine2:9877", m.raftIdToAddress[uint64(88)])
 	assert.Equal(t, "machine2:9877", m.getAddressForRaftId(uint64(88)))
 	assert.Equal(t, 1, len(m.dataStructureIdToRaftIds))
-	raftIdsForDS := m.dataStructureIdToRaftIds[uint64(55)]
+	raftIdsForDS := m.dataStructureIdToRaftIds[dataStructureId]
 	assert.Equal(t, 2, len(raftIdsForDS))
 	for rId := range raftIdsForDS {
 		_, ok := m.raftIdToAddress[rId]
@@ -187,7 +191,8 @@ func TestMembershipDataStructureQuery(t *testing.T) {
 	assert.Nil(t, err)
 
 	theAddressImLookingFor := "555_Fake_Street"
-	randomDSId := randomRaftId()
+	randomDSId, err := newId()
+	assert.Nil(t, err)
 	raftId1 := randomRaftId()
 	m2.dataStructureIdToRaftIds[randomDSId] = make(map[uint64]bool)
 	m2.dataStructureIdToRaftIds[randomDSId][raftId1] = false
@@ -214,13 +219,14 @@ func TestMembershipDataStructureQuery(t *testing.T) {
 func TestMembershipPeersForDataStructure(t *testing.T) {
 	m := &membership{
 		raftIdToAddress:          make(map[uint64]string),
-		dataStructureIdToRaftIds: make(map[uint64]map[uint64]bool),
+		dataStructureIdToRaftIds: make(map[ID]map[uint64]bool),
 		logger: log.WithFields(log.Fields{
 			"test": "TestMembershipPeersForDataStructure",
 		}),
 	}
 
-	myDataStructureId := randomRaftId()
+	myDataStructureId, err := newId()
+	assert.Nil(t, err)
 	raftId1 := randomRaftId()
 	raftId2 := randomRaftId()
 	raftId3 := randomRaftId()
@@ -245,7 +251,9 @@ func TestMembershipPeersForDataStructure(t *testing.T) {
 		assert.True(t, ok)
 	}
 
-	peers = m.peersForDataStructureId(myDataStructureId + 3)
+	anotherDataStrcutureId, err := newId()
+	assert.Nil(t, err)
+	peers = m.peersForDataStructureId(anotherDataStrcutureId)
 	assert.Equal(t, 0, len(peers))
 }
 
@@ -258,7 +266,8 @@ func TestMembershipAddRemoveDataStructureToRaftIdMapping(t *testing.T) {
 	m, err := newMembership(config)
 	assert.Nil(t, err)
 
-	dataStructureId := uint64(123)
+	dataStructureId, err := newId()
+	assert.Nil(t, err)
 	raftId := uint64(456)
 
 	err = m.addDataStructureToRaftIdMapping(dataStructureId, raftId)
@@ -270,7 +279,7 @@ func TestMembershipAddRemoveDataStructureToRaftIdMapping(t *testing.T) {
 	err = proto.UnmarshalText(hostedItems, hi)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(hi.DataStructureToRaftMapping))
-	raftIdIRead, ok := hi.DataStructureToRaftMapping[dataStructureId]
+	raftIdIRead, ok := hi.DataStructureToRaftMapping[dataStructureId.String()]
 	assert.True(t, ok)
 	assert.Equal(t, raftId, raftIdIRead)
 
@@ -283,7 +292,7 @@ func TestMembershipAddRemoveDataStructureToRaftIdMapping(t *testing.T) {
 	err = proto.UnmarshalText(hostedItems, hi)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(hi.DataStructureToRaftMapping))
-	_, ok = hi.DataStructureToRaftMapping[dataStructureId]
+	_, ok = hi.DataStructureToRaftMapping[dataStructureId.String()]
 	assert.False(t, ok)
 
 	err = m.stop()

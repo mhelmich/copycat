@@ -65,11 +65,11 @@ message RaftIdQueryResponse {
 }
 
 message DataStructureIdRequest {
-  uint64 DataStructureId = 1;
+  Id128 DataStructureId = 1;
 }
 
 message DataStructureIdResponse {
-  uint64 DataStructureId = 1;
+  Id128 DataStructureId = 1;
   uint64 RaftId = 2;
   string Address = 3;
 }
@@ -84,7 +84,7 @@ message Peer {
 }
 
 message HostedItems {
-  map<uint64,uint64> DataStructureToRaftMapping = 1;
+  map<string, uint64> DataStructureToRaftMapping = 1;
 }
 
 //////////////////////////////////////////
@@ -114,7 +114,7 @@ service CopyCatService {
 }
 
 message StartRaftRequest {
-  uint64 DataStructureId = 1;
+  Id128 DataStructureId = 1;
 }
 
 message StartRaftResponse {

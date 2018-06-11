@@ -64,7 +64,8 @@ func TestMembershipCacheBasic(t *testing.T) {
 }
 
 func TestMembershipCacheCreateDetachedRaftStepStop(t *testing.T) {
-	dataStructureId := uint64(55)
+	dataStructureId, err := newId()
+	assert.Nil(t, err)
 	raftId := uint64(99)
 	mockMembership := new(mockMemberList)
 	mockMembership.On("addDataStructureToRaftIdMapping", dataStructureId, raftId).Return(nil)
@@ -113,7 +114,8 @@ func TestMembershipCacheCreateDetachedRaftStepStop(t *testing.T) {
 }
 
 func TestMembershipCacheCreateInteractiveRaftStepStop(t *testing.T) {
-	dataStructureId := uint64(55)
+	dataStructureId, err := newId()
+	assert.Nil(t, err)
 	raftId := uint64(99)
 	mockMembership := new(mockMemberList)
 	mockMembership.On("addDataStructureToRaftIdMapping", dataStructureId, raftId).Return(nil)
@@ -219,7 +221,9 @@ func TestMembershipCacheStartRaftGroup(t *testing.T) {
 		logger: log.WithFields(log.Fields{}),
 	}
 
-	peers, err := mc.chooseReplicaNode(uint64(33), 2)
+	dataStructureId, err := newId()
+	assert.Nil(t, err)
+	peers, err := mc.chooseReplicaNode(dataStructureId, 2)
 	assert.Nil(t, err)
 	assert.Equal(t, 2, len(peers))
 	assert.Equal(t, uint64(88), peers[0].Id)
@@ -275,7 +279,9 @@ func TestMembershipCacheStartRaftGroupWithFailure(t *testing.T) {
 		logger: log.WithFields(log.Fields{}),
 	}
 
-	peers, err := mc.chooseReplicaNode(uint64(33), 1)
+	dataStructureId, err := newId()
+	assert.Nil(t, err)
+	peers, err := mc.chooseReplicaNode(dataStructureId, 1)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(peers))
 	assert.Equal(t, uint64(88), peers[0].Id)

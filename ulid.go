@@ -169,6 +169,20 @@ func parseIdFromString(v string) (ID, error) {
 	return id, nil
 }
 
+func parseIdFromProto(v *pb.Id128) (ID, error) {
+	var id ID
+	err := uint64ToBytesInto(v.Upper, id[:8])
+	if err != nil {
+		return id, err
+	}
+
+	err = uint64ToBytesInto(v.Lower, id[8:])
+	if err != nil {
+		return id, err
+	}
+	return id, nil
+}
+
 type ID [16]byte
 
 // String returns a lexicographically sortable string encoded ULID
@@ -208,6 +222,13 @@ func (id ID) String() string {
 	bites[25] = encoding[id[15]&31]
 
 	return string(bites)
+}
+
+func (id ID) toProto() *pb.Id128 {
+	return &pb.Id128{
+		Upper: bytesToUint64(id[:8]),
+		Lower: bytesToUint64(id[8:]),
+	}
 }
 
 func (id ID) toBytes() ([]byte, error) {

@@ -56,7 +56,7 @@ type membership struct {
 	// map[string]string - all tags of a particular serf node
 	memberIdToTags           *sync.Map
 	raftIdToAddress          map[uint64]string
-	dataStructureIdToRaftIds map[uint64]map[uint64]bool
+	dataStructureIdToRaftIds map[ID]map[uint64]bool
 
 	logger *log.Entry
 }
@@ -92,7 +92,7 @@ func newMembership(config *Config) (*membership, error) {
 	serfConfig.Tags[serfMDKeyCopyCatPort] = strconv.Itoa(config.CopyCatPort)
 	serfConfig.Tags[serfMDKeyLocation] = config.Location
 	serfConfig.Tags[serfMDKeyHostedItems] = proto.MarshalTextString(&pb.HostedItems{
-		DataStructureToRaftMapping: make(map[uint64]uint64),
+		DataStructureToRaftMapping: make(map[string]uint64),
 	})
 
 	surf, err := serf.Create(serfConfig)
@@ -117,7 +117,7 @@ func newMembership(config *Config) (*membership, error) {
 		serfTagMutex:             &sync.Mutex{},
 		memberIdToTags:           &sync.Map{},
 		raftIdToAddress:          make(map[uint64]string),
-		dataStructureIdToRaftIds: make(map[uint64]map[uint64]bool),
+		dataStructureIdToRaftIds: make(map[ID]map[uint64]bool),
 		logger: logger,
 	}
 
@@ -169,8 +169,9 @@ func (m *membership) handleMemberJoinEvent(me serf.MemberEvent) {
 		memberId := stringToUint64(mem.Name)
 		m.memberIdToTags.Store(memberId, mem.Tags)
 
-		for dsId, raftId := range hi.DataStructureToRaftMapping {
+		for dsIdStr, raftId := range hi.DataStructureToRaftMapping {
 			m.raftIdToAddress[raftId] = addr
+			dsId, _ := parseIdFromString(dsIdStr)
 			raftIds, ok := m.dataStructureIdToRaftIds[dsId]
 			if !ok {
 				raftIds = make(map[uint64]bool)
@@ -200,9 +201,10 @@ func (m *membership) handleMemberLeaveEvent(me serf.MemberEvent) {
 		memberId := stringToUint64(mem.Name)
 		m.memberIdToTags.Delete(memberId)
 
-		for dsId, raftId := range hi.DataStructureToRaftMapping {
+		for dsIdStr, raftId := range hi.DataStructureToRaftMapping {
 			delete(m.raftIdToAddress, raftId)
 			m.logger.Infof("Deleted %d", raftId)
+			dsId, _ := parseIdFromString(dsIdStr)
 			delete(m.dataStructureIdToRaftIds[dsId], raftId)
 		}
 	}
@@ -264,9 +266,10 @@ func (m *membership) handleDataStructureIdQuery(query *serf.Query) ([]byte, erro
 		return nil, err
 	}
 
-	peers := m.peersForDataStructureId(req.DataStructureId)
+	id, _ := parseIdFromProto(req.DataStructureId)
+	peers := m.peersForDataStructureId(id)
 	if peers == nil || len(peers) == 0 {
-		return nil, fmt.Errorf("I don't know about data structure id [%d] myself", req.DataStructureId)
+		return nil, fmt.Errorf("I don't know about data structure id [%s] myself", id)
 	}
 
 	resp := &pb.DataStructureIdResponse{
@@ -278,7 +281,7 @@ func (m *membership) handleDataStructureIdQuery(query *serf.Query) ([]byte, erro
 	return resp.Marshal()
 }
 
-func (m *membership) addDataStructureToRaftIdMapping(dataStructureId uint64, raftId uint64) error {
+func (m *membership) addDataStructureToRaftIdMapping(dataStructureId ID, raftId uint64) error {
 	m.serfTagMutex.Lock()
 	defer m.serfTagMutex.Unlock()
 
@@ -289,10 +292,10 @@ func (m *membership) addDataStructureToRaftIdMapping(dataStructureId uint64, raf
 
 	// protobuf will optimize empty maps away and provoke a seg fault here
 	if hi.DataStructureToRaftMapping == nil {
-		hi.DataStructureToRaftMapping = make(map[uint64]uint64)
+		hi.DataStructureToRaftMapping = make(map[string]uint64)
 	}
 
-	hi.DataStructureToRaftMapping[dataStructureId] = raftId
+	hi.DataStructureToRaftMapping[dataStructureId.String()] = raftId
 
 	// this will update the nodes metadata and broadcast it out
 	// blocks until broadcasting was successful or timed out
@@ -313,14 +316,14 @@ func (m *membership) removeDataStructureToRaftIdMapping(raftId uint64) error {
 		return nil
 	}
 
-	var dataStructureIdToDelete uint64
-	for dsId, rId := range hi.DataStructureToRaftMapping {
+	var dataStructureIdToDeleteStr string
+	for dsIdStr, rId := range hi.DataStructureToRaftMapping {
 		if rId == raftId {
-			dataStructureIdToDelete = dsId
+			dataStructureIdToDeleteStr = dsIdStr
 			break
 		}
 	}
-	delete(hi.DataStructureToRaftMapping, dataStructureIdToDelete)
+	delete(hi.DataStructureToRaftMapping, dataStructureIdToDeleteStr)
 
 	// this will update the nodes metadata and broadcast it out
 	// blocks until broadcasting was successful or timed out
@@ -348,8 +351,8 @@ func (m *membership) getMyHostedItems() (*pb.HostedItems, error) {
 	return hi, nil
 }
 
-func (m *membership) findDataStructureWithId(id uint64) (*pb.Peer, error) {
-	req := &pb.DataStructureIdRequest{DataStructureId: id}
+func (m *membership) findDataStructureWithId(id ID) (*pb.Peer, error) {
+	req := &pb.DataStructureIdRequest{DataStructureId: id.toProto()}
 	data, err := req.Marshal()
 	if err != nil {
 		return nil, err
@@ -412,7 +415,7 @@ func (m *membership) getAddressForPeer(peerId uint64) string {
 // We don't care to get the complete list of peers - one is enough.
 // What we do care about though is that if we say the data structure doesn't exist,
 // it really doesn't exist.
-func (m *membership) onePeerForDataStructureId(dataStructureId uint64) (*pb.Peer, error) {
+func (m *membership) onePeerForDataStructureId(dataStructureId ID) (*pb.Peer, error) {
 	m.serfTagMutex.Lock()
 	defer m.serfTagMutex.Unlock()
 
@@ -424,7 +427,7 @@ func (m *membership) onePeerForDataStructureId(dataStructureId uint64) (*pb.Peer
 		if err != nil {
 			return nil, err
 		} else if peer == nil {
-			return nil, fmt.Errorf("Can't find data structure with id [%d]", dataStructureId)
+			return nil, fmt.Errorf("Can't find data structure with id [%s]", dataStructureId)
 		}
 
 		return peer, nil
@@ -444,10 +447,10 @@ func (m *membership) onePeerForDataStructureId(dataStructureId uint64) (*pb.Peer
 	return nil, fmt.Errorf("Can't find data structure with id [%d]", dataStructureId)
 }
 
-func (m *membership) peersForDataStructureId(dataStructureId uint64) []pb.Peer {
+func (m *membership) peersForDataStructureId(dataStructureId ID) []pb.Peer {
 	raftIdsMap, ok := m.dataStructureIdToRaftIds[dataStructureId]
 	if !ok {
-		m.logger.Infof("I don't know data structure with id [%d]", dataStructureId)
+		m.logger.Infof("I don't know data structure with id [%s]", dataStructureId.String())
 		return make([]pb.Peer, 0)
 	}
 

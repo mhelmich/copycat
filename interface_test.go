@@ -41,12 +41,17 @@ func __TestCopyCatBasic(t *testing.T) {
 
 func loadTestCat(cc CopyCat) *testCat {
 	cat := &testCat{}
-	catId := uint64(99)
 	var err error
+	catId, err := cc.NewDataStructureId()
+	if err != nil {
+		return nil
+	}
+
 	cat.proposeCh, cat.commitCh, cat.errorCh, cat.snapshotConsumer, err = cc.ConnectToDataStructure(catId, cat.providerSnapshot)
 	if err != nil {
 		return nil
 	}
+
 	go cat.serveChannel()
 	return cat
 }

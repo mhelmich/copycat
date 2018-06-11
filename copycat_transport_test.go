@@ -166,7 +166,11 @@ func TestTransportStartStopRaft(t *testing.T) {
 		}),
 	}
 
-	respStart, err := transport.StartRaft(context.TODO(), &pb.StartRaftRequest{})
+	dataStructureId, err := newId()
+	assert.Nil(t, err)
+	respStart, err := transport.StartRaft(context.TODO(), &pb.StartRaftRequest{
+		DataStructureId: dataStructureId.toProto(),
+	})
 	assert.Nil(t, err)
 	assert.NotNil(t, respStart.RaftId)
 	assert.NotNil(t, respStart.RaftAddress)

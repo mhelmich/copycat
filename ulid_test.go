@@ -47,6 +47,31 @@ func TestUlidBasic(t *testing.T) {
 	log.Infof("%s %s", ulid1.String(), ulid4.String())
 }
 
+func TestUlidMap(t *testing.T) {
+	m := make(map[ID]string)
+	ulid1, err := newId()
+	assert.Nil(t, err)
+	ulid2, err := newId()
+	assert.Nil(t, err)
+	ulid3, err := newId()
+	assert.Nil(t, err)
+
+	m[ulid1] = ulid1.String()
+	m[ulid2] = ulid2.String()
+	m[ulid3] = ulid3.String()
+
+	str, ok := m[ulid2]
+	assert.True(t, ok)
+	assert.Equal(t, ulid2.String(), str)
+
+	proto := ulid2.toProto()
+	ulid4, err := parseIdFromProto(proto)
+	assert.Nil(t, err)
+	str, ok = m[ulid4]
+	assert.True(t, ok)
+	assert.Equal(t, ulid2.String(), str)
+}
+
 /////////////////////////////////////////////////////////
 /////////////////////////////////////////////////
 //////////////////////////////////////////
