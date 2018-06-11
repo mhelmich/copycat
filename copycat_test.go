@@ -60,7 +60,7 @@ func TestCopyCatNewDataStructure(t *testing.T) {
 	cc2, err := newCopyCat(config2)
 	assert.Nil(t, err)
 
-	newDataStructureId, err := cc1.NewDataStructureId()
+	newDataStructureId, err := cc1.NewDataStructureID()
 	assert.Nil(t, err)
 	proposeChan1, commitChan1, _, _, err := cc1.ConnectToDataStructure(newDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
@@ -101,7 +101,7 @@ func TestCopyCatConnectToExistingDataStructure(t *testing.T) {
 	cc2, err := newCopyCat(config2)
 	assert.Nil(t, err)
 
-	newDataStructureId, err := cc1.NewDataStructureId()
+	newDataStructureId, err := cc1.NewDataStructureID()
 	assert.Nil(t, err)
 	proposeChan1, commitChan1, _, _, err := cc1.ConnectToDataStructure(newDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)

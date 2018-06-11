@@ -60,8 +60,17 @@ func newCopyCat(config *Config) (*copyCatImpl, error) {
 	return cc, nil
 }
 
-func (c *copyCatImpl) NewDataStructureId() (ID, error) {
+func (c *copyCatImpl) NewDataStructureID() (ID, error) {
 	return newId()
+}
+
+func (c *copyCatImpl) ConnectToDataStructureWithStringID(id string, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error) {
+	i, err := parseIdFromString(id)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	return c.ConnectToDataStructure(i, provider)
 }
 
 // takes one operation, finds the leader remotely, and sends the operation to the leader

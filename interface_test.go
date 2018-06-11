@@ -42,7 +42,7 @@ func __TestCopyCatBasic(t *testing.T) {
 func loadTestCat(cc CopyCat) *testCat {
 	cat := &testCat{}
 	var err error
-	catId, err := cc.NewDataStructureId()
+	catId, err := cc.NewDataStructureID()
 	if err != nil {
 		return nil
 	}
