@@ -34,14 +34,17 @@ func TestUlidBasic(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, ulid1.String(), ulid2.String())
 	log.Infof("%s %s", ulid1.String(), ulid2.String())
+	ulid3, err := parseUlidFromString(ulid1.String())
+	assert.Nil(t, err)
+	assert.Equal(t, 0, ulid1.compareTo(ulid3))
 
 	// make the time break over
 	time.Sleep(time.Millisecond)
 
-	ulid3, err := newUlid()
+	ulid4, err := newUlid()
 	assert.Nil(t, err)
-	assert.True(t, ulid1.compareTo(ulid3) < 0)
-	log.Infof("%s %s", ulid1.String(), ulid3.String())
+	assert.True(t, ulid1.compareTo(ulid4) < 0)
+	log.Infof("%s %s", ulid1.String(), ulid4.String())
 }
 
 /////////////////////////////////////////////////////////
