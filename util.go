@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"strconv"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -36,6 +37,11 @@ func uint64ToBytes(u uint64) []byte {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, u)
 	return buf
+}
+
+func uint64ToBytesInto(u uint64, buf []byte) error {
+	binary.BigEndian.PutUint64(buf, u)
+	return nil
 }
 
 func uint64ToString(i uint64) string {
@@ -61,4 +67,9 @@ func randomRaftId() uint64 {
 		log.Panicf("Can't read from random: %s", err.Error())
 	}
 	return bytesToUint64(bites)
+}
+
+func nowUnixUtc() uint64 {
+	t := time.Now().UTC()
+	return uint64(t.Unix())*1000 + uint64(t.Nanosecond()/int(time.Millisecond))
 }
