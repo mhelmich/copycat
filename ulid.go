@@ -183,6 +183,8 @@ func parseIdFromProto(v *pb.Id128) (ID, error) {
 	return id, nil
 }
 
+// IDs are handles to data structures. The only valid two operations on an id are
+// to convert it to a string format (e.g. to save it somewhere) or to compare if with other ids.
 type ID [16]byte
 
 // String returns a lexicographically sortable string encoded ULID
