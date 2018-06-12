@@ -210,7 +210,7 @@ func (rb *raftBackend) serveProposalChannels() {
 				rb.stop()
 				return
 			}
-			// TODO: there a data race here!!!
+			// TODO: there is a data race here!!!
 			cc.ID = rb.latestConfChangeId + 1
 			err := rb.raftNode.ProposeConfChange(context.TODO(), cc)
 			if err != nil {
