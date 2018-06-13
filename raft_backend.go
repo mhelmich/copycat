@@ -234,8 +234,8 @@ func (rb *raftBackend) runRaftStateMachine() {
 	rb.confState = snap.Metadata.ConfState
 	rb.snapshotIndex = snap.Metadata.Index
 	rb.appliedIndex = snap.Metadata.Index
-	// if the snapshot is not empty, that means we need to provoke the consumer
-	// the reload its current state from this snapshot by sending nil to the commit channel
+	// If the snapshot is not empty, that means we need to provoke the consumer.
+	// Then reload its current state from this snapshot by sending nil to the commit channel.
 	if rb.isInteractive && !raft.IsEmptySnap(snap) {
 		select {
 		case rb.commitChan <- nil:
@@ -268,7 +268,7 @@ func (rb *raftBackend) runRaftStateMachine() {
 	}
 }
 
-// store raft entries and hard state, then publish changes over commit channel
+// Store raft entries and hard state, then publish changes over commit channel.
 // Returning false will stop the raft state machine!
 func (rb *raftBackend) procesReady(rd raft.Ready) bool {
 	rb.logger.Debugf("ID: %d %x Hardstate: %v Entries: %v Snapshot: %v Messages: %v Committed: %v ConfState: %s", rb.raftId, rb.raftId, rd.HardState, rd.Entries, rd.Snapshot, rd.Messages, rd.CommittedEntries, rb.confState.String())
