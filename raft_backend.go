@@ -393,9 +393,9 @@ func (rb *raftBackend) bakeNewSnapshot(data []byte) (raftpb.Snapshot, error) {
 	}, nil
 }
 
-func (rb *raftBackend) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry) {
+func (rb *raftBackend) entriesToApply(ents []raftpb.Entry) []raftpb.Entry {
 	if len(ents) == 0 {
-		return
+		return make([]raftpb.Entry, 0)
 	}
 
 	firstIdx := ents[0].Index
@@ -407,10 +407,10 @@ func (rb *raftBackend) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry
 
 	// if I get things that I didn't ask for, I sort them out
 	if rb.appliedIndex-firstIdx+1 < uint64(len(ents)) {
-		nents = ents[rb.appliedIndex-firstIdx+1:]
+		return ents[rb.appliedIndex-firstIdx+1:]
 	}
 
-	return nents
+	return ents
 }
 
 func (rb *raftBackend) publishEntries(ents []raftpb.Entry) bool {
