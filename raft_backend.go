@@ -65,7 +65,7 @@ type raftBackend struct {
 	snapshotProvider SnapshotProvider
 	// The last index that has been applied. It helps us figuring out which entries to publish.
 	appliedIndex uint64
-	// The index of the latest snapshot.
+	// The index of the latest snapshot. Used to compute when to cut the next snapshot.
 	snapshotIndex uint64
 	// The number of log entries after which we cut a snapshot.
 	snapshotFrequency uint64
@@ -226,7 +226,7 @@ func (rb *raftBackend) serveProposalChannels() {
 func (rb *raftBackend) runRaftStateMachine() {
 	snap, err := rb.store.Snapshot()
 	if err != nil {
-		rb.logger.Fatalf("Can't get base snapshot: %s", err)
+		rb.logger.Errorf("Can't get base snapshot: %s", err)
 		rb.stop()
 		return
 	}
@@ -234,6 +234,15 @@ func (rb *raftBackend) runRaftStateMachine() {
 	rb.confState = snap.Metadata.ConfState
 	rb.snapshotIndex = snap.Metadata.Index
 	rb.appliedIndex = snap.Metadata.Index
+	// if the snapshot is not empty, that means we need to provoke the consumer
+	// the reload its current state from this snapshot by sending nil to the commit channel
+	if rb.isInteractive && !raft.IsEmptySnap(snap) {
+		select {
+		case rb.commitChan <- nil:
+		case <-rb.stopChan:
+			return
+		}
+	}
 	defer rb.store.close()
 
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -262,7 +271,7 @@ func (rb *raftBackend) runRaftStateMachine() {
 // store raft entries and hard state, then publish changes over commit channel
 // Returning false will stop the raft state machine!
 func (rb *raftBackend) procesReady(rd raft.Ready) bool {
-	rb.logger.Debugf("ID:%d %x Hardstate: %v Entries: %v Snapshot: %v Messages: %v Committed: %v ConfState: %s", rb.raftId, rb.raftId, rd.HardState, rd.Entries, rd.Snapshot, rd.Messages, rd.CommittedEntries, rb.confState.String())
+	rb.logger.Debugf("ID: %d %x Hardstate: %v Entries: %v Snapshot: %v Messages: %v Committed: %v ConfState: %s", rb.raftId, rb.raftId, rd.HardState, rd.Entries, rd.Snapshot, rd.Messages, rd.CommittedEntries, rb.confState.String())
 	rb.store.saveEntriesAndState(rd.Entries, rd.HardState)
 
 	if !raft.IsEmptySnap(rd.Snapshot) {

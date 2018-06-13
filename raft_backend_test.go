@@ -506,6 +506,52 @@ func TestRaftBackendSplitBrainFailover(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestRaftBackendStartWithSnapshot(t *testing.T) {
+	mockStore := new(mockStore)
+	snapData := make([]byte, 0)
+	snap := raftpb.Snapshot{
+		Data: snapData,
+		Metadata: raftpb.SnapshotMetadata{
+			Index: uint64(99),
+			Term:  uint64(2),
+			ConfState: raftpb.ConfState{
+				Nodes: []uint64{uint64(88)},
+			},
+		},
+	}
+	mockStore.On("Snapshot").Return(snap, nil)
+	mockStore.On("close").Return()
+
+	mockRaftNode := new(mockRaftNode)
+	readyCh := make(chan raft.Ready)
+	var readOnlyReadyCh <-chan raft.Ready = readyCh
+	mockRaftNode.On("Ready").Return(readOnlyReadyCh)
+	mockRaftNode.On("Tick").Return()
+
+	commitCh := make(chan []byte)
+	stopCh := make(chan struct{})
+
+	rb := &raftBackend{
+		store:         mockStore,
+		raftNode:      mockRaftNode,
+		isInteractive: true,
+		commitChan:    commitCh,
+		stopChan:      stopCh,
+		logger:        log.WithFields(log.Fields{}),
+	}
+
+	go rb.runRaftStateMachine()
+	data, ok := <-commitCh
+	assert.True(t, ok)
+	assert.Nil(t, data)
+	assert.Equal(t, uint64(99), rb.snapshotIndex)
+	assert.Equal(t, uint64(99), rb.appliedIndex)
+	assert.Equal(t, 1, len(rb.confState.Nodes))
+	assert.Equal(t, uint64(88), rb.confState.Nodes[0])
+
+	close(stopCh)
+}
+
 func findLeaderBackend(backends ...*raftBackend) *raftBackend {
 	for _, b := range backends {
 		if b.raftNode.Status().RaftState == raft.StateLeader {
