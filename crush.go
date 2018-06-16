@@ -23,16 +23,6 @@ import (
 	"sync"
 )
 
-var (
-	bestEffortDfsMode = func(idxRes int, numItemsNeededOnThisLevel int) bool {
-		return idxRes >= 0
-	}
-
-	strictDfsMode = func(idxRes int, numItemsNeededOnThisLevel int) bool {
-		return idxRes >= numItemsNeededOnThisLevel
-	}
-)
-
 // This simple implementation of the crush algorithm was inspired by this reading:
 // https://www.slideshare.net/sageweil1/a-crash-course-in-crush
 // https://ceph.com/wp-content/uploads/2016/08/weil-crush-sc06.pdf
@@ -109,12 +99,7 @@ func (c *crush) hashRendezVous(r uint8, level *sync.Map, dataStructureId ID) int
 	return highestKey
 }
 
-// the successfullyAddedFunc allows us to do the dfs in two modes
-// 1. strict mode - we try to fulfill the ask to the dot and if we can't,
-//     we don't return anything at all
-// 2. best effort mode - we cobble up what we can and return a partial result
-//    because that's better than nothing
-func (c *crush) dfs(m *sync.Map, wv *workingVector, idxInWorkingVector int, successfullyAddedFunc func(idxRes int, numItemsNeededOnThisLevel int) bool) bool {
+func (c *crush) dfs(m *sync.Map, wv *workingVector, idxInWorkingVector int) bool {
 	if idxInWorkingVector >= len(wv.numItemsToFind) {
 		return false
 	}
@@ -136,7 +121,7 @@ func (c *crush) dfs(m *sync.Map, wv *workingVector, idxInWorkingVector int, succ
 				if ok {
 					m := v.(*sync.Map)
 					// recurse and descend
-					added = c.dfs(m, wv, idxInWorkingVector+1, successfullyAddedFunc)
+					added = c.dfs(m, wv, idxInWorkingVector+1)
 				}
 
 				// if added is true, we could fulfill the demands
@@ -157,7 +142,12 @@ func (c *crush) dfs(m *sync.Map, wv *workingVector, idxInWorkingVector int, succ
 		}
 	}
 
-	if successfullyAddedFunc(idxRes, numItemsNeededOnThisLevel) {
+	// this clause declares utmost strictness!!
+	// if we can't exactly fulfill the ask,
+	// we abondon this entire branch
+	// if we want to be more lenient, we can do something like this:
+	// if idxRes >= 0 { ...
+	if idxRes >= numItemsNeededOnThisLevel {
 		wv.intermediateResults[idxInWorkingVector] = append(wv.intermediateResults[idxInWorkingVector], intermediateResults...)
 		return true
 	}
@@ -175,23 +165,7 @@ func (c *crush) place(dataStructureId ID, numDataCenterReplicas int, numRackRepl
 	}
 
 	// kick off recursion
-	// the success function declares utmost strictness!!
-	// if we can't exactly fulfill the ask,
-	// we abondon this entire branch
-	c.dfs(c.allDataCenters, wv, 0, strictDfsMode)
-	return wv
-}
-
-func (c *crush) placeBestEffort(dataStructureId ID, numDataCenterReplicas int, numRackReplicasInDataCenter int, numPeersReplicasInRack int) *workingVector {
-	wv := &workingVector{
-		dataStructureId:     dataStructureId,
-		numItemsToFind:      []int{numDataCenterReplicas, numRackReplicasInDataCenter, numPeersReplicasInRack},
-		intermediateResults: make([][]interface{}, 3),
-	}
-
-	// best effort mode
-	// be lenient in your success function
-	c.dfs(c.allDataCenters, wv, 0, bestEffortDfsMode)
+	c.dfs(c.allDataCenters, wv, 0)
 	return wv
 }
 
