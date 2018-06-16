@@ -36,7 +36,8 @@ const (
 	serfMDKeyCopyCatPort = "cat_port"
 	serfMDKeyHost        = "host"
 	serfMDKeyHostedItems = "items"
-	serfMDKeyLocation    = "loc"
+	serfMDKeyDataCenter  = "dc"
+	serfMDKeyRack        = "rack"
 )
 
 // Membership uses serf under the covers to gossip metadata about the cluster.
@@ -90,7 +91,8 @@ func newMembership(config *Config) (*membership, error) {
 	serfConfig.Tags[serfMDKeyHost] = config.Hostname
 	serfConfig.Tags[serfMDKeySerfPort] = strconv.Itoa(config.GossipPort)
 	serfConfig.Tags[serfMDKeyCopyCatPort] = strconv.Itoa(config.CopyCatPort)
-	serfConfig.Tags[serfMDKeyLocation] = config.Location
+	serfConfig.Tags[serfMDKeyDataCenter] = config.DataCenter
+	serfConfig.Tags[serfMDKeyRack] = config.Rack
 	serfConfig.Tags[serfMDKeyHostedItems] = proto.MarshalTextString(&pb.HostedItems{
 		DataStructureToRaftMapping: make(map[string]uint64),
 	})

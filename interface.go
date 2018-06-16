@@ -42,7 +42,6 @@ func DefaultConfig() *Config {
 		CopyCatPort:    defaultCopyCatPort,
 		GossipPort:     defaultCopyCatPort + 1000,
 		CopyCatDataDir: defaultCopyCatDataDir,
-		Location:       "",
 		logger: log.WithFields(log.Fields{
 			"component": "copycat",
 			"host":      host,
@@ -67,7 +66,11 @@ type Config struct {
 	// Arbitrary string identifying a geo location. CopyCat will try to distribute data across multiple
 	// geo locations to protect data against dependent failures such as power outages, etc.
 	// Even though the API doesn't prescribe a string size, shorter is better.
-	Location string
+	// A data center is such an arbitrary geo location.
+	DataCenter string
+	// A rack is a section within a data center. Even though you might not know which rack your nodes live in,
+	// this can be used to create a second hierarchy for data placement.
+	Rack string
 
 	// Populated internally.
 	raftTransport raftTransport
@@ -75,7 +78,7 @@ type Config struct {
 }
 
 func (c *Config) String() string {
-	return fmt.Sprintf("CopyCatConfig: Hostname: [%s] CopyCatPort: [%d] GossipPort: [%d] Location: [%s] Peers: [%s] DataDir: [%s]", c.Hostname, c.CopyCatPort, c.GossipPort, c.Location, strings.Join(c.PeersToContact, ", "), c.CopyCatDataDir)
+	return fmt.Sprintf("CopyCatConfig: Hostname: [%s] CopyCatPort: [%d] GossipPort: [%d] DataCenter: [%s] Rack: [%s] Peers: [%s] DataDir: [%s]", c.Hostname, c.CopyCatPort, c.GossipPort, c.DataCenter, c.Rack, strings.Join(c.PeersToContact, ", "), c.CopyCatDataDir)
 }
 
 func (c *Config) address() string {

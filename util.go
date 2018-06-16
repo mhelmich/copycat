@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"strconv"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -72,4 +73,15 @@ func randomRaftId() uint64 {
 func nowUnixUtc() uint64 {
 	t := time.Now().UTC()
 	return uint64(t.Unix())*1000 + uint64(t.Nanosecond()/int(time.Millisecond))
+}
+
+func isSyncMapEmpty(m *sync.Map) bool {
+	isEmpty := true
+	m.Range(func(key, value interface{}) bool {
+		// if we ever execute this,
+		// the map isn't empty
+		isEmpty = false
+		return false
+	})
+	return isEmpty
 }
