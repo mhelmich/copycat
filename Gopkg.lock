@@ -14,13 +14,13 @@
   version = "v1.3.0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/coreos/etcd"
   packages = [
     "raft",
     "raft/raftpb"
   ]
-  revision = "56536de5511128d0c7997aa2b792a4de575da536"
-  version = "v3.3.7"
+  revision = "8f6348a97d483316c5039d6bbc2f66ba2c00e1d0"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -245,6 +245,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a42fe698a011f3ea44be91c3c0917b6d27cc1c55bc84a92a148b9c4a1b120877"
+  inputs-digest = "4c8dbdab3e5a482e163874c892cd8120b00f3742f043186178b68b996fd05614"
   solver-name = "gps-cdcl"
   solver-version = 1

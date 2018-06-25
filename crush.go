@@ -100,11 +100,11 @@ func (c *crush) hashRendezVous(r uint8, level *sync.Map, dataStructureId ID) int
 }
 
 func (c *crush) dfs(m *sync.Map, wv *workingVector, idxInWorkingVector int) bool {
-	if idxInWorkingVector >= len(wv.numItemsToFind) {
+	if idxInWorkingVector >= len(wv.numReplicas) {
 		return false
 	}
 
-	numItemsNeededOnThisLevel := wv.numItemsToFind[idxInWorkingVector]
+	numItemsNeededOnThisLevel := wv.numReplicas[idxInWorkingVector]
 	intermediateResults := make([]interface{}, numItemsNeededOnThisLevel)
 	idxRes := 0
 	var r uint8
@@ -160,12 +160,28 @@ func (c *crush) dfs(m *sync.Map, wv *workingVector, idxInWorkingVector int) bool
 func (c *crush) place(dataStructureId ID, numDataCenterReplicas int, numRackReplicasInDataCenter int, numPeersReplicasInRack int) *workingVector {
 	wv := &workingVector{
 		dataStructureId:     dataStructureId,
-		numItemsToFind:      []int{numDataCenterReplicas, numRackReplicasInDataCenter, numPeersReplicasInRack},
+		numReplicas:         []int{numDataCenterReplicas, numRackReplicasInDataCenter, numPeersReplicasInRack},
 		intermediateResults: make([][]interface{}, 3),
 	}
 
 	// kick off recursion
-	c.dfs(c.allDataCenters, wv, 0)
+	complete := c.dfs(c.allDataCenters, wv, 0)
+	lastLevel := wv.intermediateResults[len(wv.intermediateResults)-1]
+	wv.peerIds = make([]uint64, len(lastLevel))
+	if complete {
+		for idx, o := range lastLevel {
+			wv.peerIds[idx] = o.(uint64)
+		}
+	} else {
+		idx := 0
+		for _, o := range lastLevel {
+			if o != nil {
+				wv.peerIds[idx] = o.(uint64)
+				idx++
+			}
+		}
+		wv.peerIds = wv.peerIds[:idx]
+	}
 	return wv
 }
 
@@ -189,9 +205,9 @@ func (c *crush) canUse(chosenKeys []interface{}, newKey interface{}) bool {
 			}
 		}
 		return true
+	default:
+		return false
 	}
-
-	return true
 }
 
 // this is called by the gossip component repeatedly but never concurrently
@@ -249,6 +265,7 @@ func (c *crush) removePeer(peerId uint64, metadata map[string]string) {
 // the only interesting end result for prod use is the pickedPeers slice
 type workingVector struct {
 	dataStructureId     ID
-	numItemsToFind      []int
+	numReplicas         []int
 	intermediateResults [][]interface{}
+	peerIds             []uint64
 }

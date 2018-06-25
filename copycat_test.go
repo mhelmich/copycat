@@ -62,12 +62,14 @@ func TestCopyCatNewDataStructure(t *testing.T) {
 
 	newDataStructureId, err := cc1.NewDataStructureID()
 	assert.Nil(t, err)
-	proposeChan1, commitChan1, _, _, err := cc1.ConnectToDataStructure(newDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
+	proposeChan1, commitChan1, _, _, err := cc1.SubscribeToDataStructure(newDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
 
 	proposeChan1 <- []byte("hello_world")
 	bites := <-commitChan1
 	assert.Equal(t, "hello_world", string(bites))
+	// close channel to close interactive raft backing the channel
+	close(proposeChan1)
 
 	cc1.Shutdown()
 	err = os.RemoveAll(config1.CopyCatDataDir)
@@ -78,10 +80,10 @@ func TestCopyCatNewDataStructure(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestCopyCatConnectToExistingDataStructure(t *testing.T) {
+func TestCopyCatSubscribeToExistingDataStructure(t *testing.T) {
 	config1 := DefaultConfig()
 	config1.Hostname = "127.0.0.1"
-	config1.CopyCatDataDir = "./test-TestCopyCatConnectToExistingDataStructure-" + uint64ToString(randomRaftId()) + "/"
+	config1.CopyCatDataDir = "./test-TestCopyCatSubscribeToExistingDataStructure-" + uint64ToString(randomRaftId()) + "/"
 	config1.GossipPort = 10000
 	config1.CopyCatPort = 20000
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
@@ -91,7 +93,7 @@ func TestCopyCatConnectToExistingDataStructure(t *testing.T) {
 
 	config2 := DefaultConfig()
 	config2.Hostname = "127.0.0.1"
-	config2.CopyCatDataDir = "./test-TestCopyCatConnectToExistingDataStructure-" + uint64ToString(randomRaftId()) + "/"
+	config2.CopyCatDataDir = "./test-TestCopyCatSubscribeToExistingDataStructure-" + uint64ToString(randomRaftId()) + "/"
 	config2.GossipPort = config1.GossipPort + 1111
 	config2.CopyCatPort = config1.CopyCatPort + 1111
 	config2.PeersToContact = make([]string, 1)
@@ -103,7 +105,7 @@ func TestCopyCatConnectToExistingDataStructure(t *testing.T) {
 
 	newDataStructureId, err := cc1.NewDataStructureID()
 	assert.Nil(t, err)
-	proposeChan1, commitChan1, _, _, err := cc1.ConnectToDataStructure(newDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
+	proposeChan1, commitChan1, _, _, err := cc1.SubscribeToDataStructure(newDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
 
 	proposeChan1 <- []byte("hello")
@@ -115,7 +117,7 @@ func TestCopyCatConnectToExistingDataStructure(t *testing.T) {
 
 	config3 := DefaultConfig()
 	config3.Hostname = "127.0.0.1"
-	config3.CopyCatDataDir = "./test-TestCopyCatConnectToExistingDataStructure-" + uint64ToString(randomRaftId()) + "/"
+	config3.CopyCatDataDir = "./test-TestCopyCatSubscribeToExistingDataStructure-" + uint64ToString(randomRaftId()) + "/"
 	config3.GossipPort = config2.GossipPort + 1111
 	config3.CopyCatPort = config2.CopyCatPort + 1111
 	config3.PeersToContact = make([]string, 1)
@@ -125,12 +127,19 @@ func TestCopyCatConnectToExistingDataStructure(t *testing.T) {
 	cc3, err := newCopyCat(config3)
 	assert.Nil(t, err)
 
-	_, commitChan3, _, _, err := cc3.ConnectToDataStructure(newDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
+	proposeChan3, commitChan3, _, _, err := cc3.SubscribeToDataStructure(newDataStructureId, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
 	bites = <-commitChan3
 	assert.Equal(t, "hello", string(bites))
 	bites = <-commitChan3
 	assert.Equal(t, "world", string(bites))
+
+	close(proposeChan1)
+	close(proposeChan3)
+
+	cc3.Shutdown()
+	err = os.RemoveAll(config3.CopyCatDataDir)
+	assert.Nil(t, err)
 
 	cc1.Shutdown()
 	err = os.RemoveAll(config1.CopyCatDataDir)
@@ -138,9 +147,5 @@ func TestCopyCatConnectToExistingDataStructure(t *testing.T) {
 
 	cc2.Shutdown()
 	err = os.RemoveAll(config2.CopyCatDataDir)
-	assert.Nil(t, err)
-
-	cc3.Shutdown()
-	err = os.RemoveAll(config3.CopyCatDataDir)
 	assert.Nil(t, err)
 }

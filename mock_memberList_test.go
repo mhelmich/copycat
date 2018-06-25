@@ -51,30 +51,16 @@ func (_m *mockMemberList) getAddressForRaftId(raftId uint64) string {
 	return r0
 }
 
-// myGossipNodeId provides a mock function with given fields:
-func (_m *mockMemberList) myGossipNodeId() uint64 {
-	ret := _m.Called()
-
-	var r0 uint64
-	if rf, ok := ret.Get(0).(func() uint64); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Get(0).(uint64)
-	}
-
-	return r0
-}
-
 // onePeerForDataStructureId provides a mock function with given fields: dataStructureId
-func (_m *mockMemberList) onePeerForDataStructureId(dataStructureId ID) (*pb.Peer, error) {
+func (_m *mockMemberList) onePeerForDataStructureId(dataStructureId ID) (*pb.RaftPeer, error) {
 	ret := _m.Called(dataStructureId)
 
-	var r0 *pb.Peer
-	if rf, ok := ret.Get(0).(func(ID) *pb.Peer); ok {
+	var r0 *pb.RaftPeer
+	if rf, ok := ret.Get(0).(func(ID) *pb.RaftPeer); ok {
 		r0 = rf(dataStructureId)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*pb.Peer)
+			r0 = ret.Get(0).(*pb.RaftPeer)
 		}
 	}
 
@@ -89,28 +75,28 @@ func (_m *mockMemberList) onePeerForDataStructureId(dataStructureId ID) (*pb.Pee
 }
 
 // peersForDataStructureId provides a mock function with given fields: dataStructureId
-func (_m *mockMemberList) peersForDataStructureId(dataStructureId ID) []pb.Peer {
+func (_m *mockMemberList) peersForDataStructureId(dataStructureId ID) []*pb.RaftPeer {
 	ret := _m.Called(dataStructureId)
 
-	var r0 []pb.Peer
-	if rf, ok := ret.Get(0).(func(ID) []pb.Peer); ok {
+	var r0 []*pb.RaftPeer
+	if rf, ok := ret.Get(0).(func(ID) []*pb.RaftPeer); ok {
 		r0 = rf(dataStructureId)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]pb.Peer)
+			r0 = ret.Get(0).([]*pb.RaftPeer)
 		}
 	}
 
 	return r0
 }
 
-// pickFromMetadata provides a mock function with given fields: picker, numItemsToPick, avoidMe
-func (_m *mockMemberList) pickFromMetadata(picker func(uint64, map[string]string) bool, numItemsToPick int, avoidMe []uint64) []uint64 {
-	ret := _m.Called(picker, numItemsToPick, avoidMe)
+// pickReplicaPeers provides a mock function with given fields: dataStructureId, numReplicas
+func (_m *mockMemberList) pickReplicaPeers(dataStructureId ID, numReplicas int) []uint64 {
+	ret := _m.Called(dataStructureId, numReplicas)
 
 	var r0 []uint64
-	if rf, ok := ret.Get(0).(func(func(uint64, map[string]string) bool, int, []uint64) []uint64); ok {
-		r0 = rf(picker, numItemsToPick, avoidMe)
+	if rf, ok := ret.Get(0).(func(ID, int) []uint64); ok {
+		r0 = rf(dataStructureId, numReplicas)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]uint64)

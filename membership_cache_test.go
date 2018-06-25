@@ -36,6 +36,7 @@ import (
 func TestMembershipCacheBasic(t *testing.T) {
 	config1 := DefaultConfig()
 	config1.Hostname = "127.0.0.1"
+	config1.logger = log.WithFields(log.Fields{})
 	config1.CopyCatDataDir = "./test-TestMembershipCacheBasic-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
@@ -44,6 +45,7 @@ func TestMembershipCacheBasic(t *testing.T) {
 
 	config2 := DefaultConfig()
 	config2.Hostname = "127.0.0.1"
+	config2.logger = log.WithFields(log.Fields{})
 	config2.CopyCatDataDir = "./test-TestMembershipCacheBasic-" + uint64ToString(randomRaftId()) + "/"
 	config2.GossipPort = config1.GossipPort + 100
 	config2.PeersToContact = make([]string, 1)
@@ -78,6 +80,7 @@ func TestMembershipCacheCreateDetachedRaftStepStop(t *testing.T) {
 	mockRaftNode := new(mockRaftNode)
 	mockRaftNode.On("Step", mock.Anything, msg).Return(nil)
 	mockRaftNode.On("ProposeConfChange", mock.Anything, mock.Anything).Return(nil)
+	mockRaftNode.On("Stop").Return()
 
 	mockBackend := &raftBackend{
 		raftId:   raftId,
@@ -89,12 +92,13 @@ func TestMembershipCacheCreateDetachedRaftStepStop(t *testing.T) {
 	mc := &membershipCache{
 		raftIdToRaftBackend: &sync.Map{},
 		membership:          mockMembership,
-		newDetachedRaftBackendWithIdFunc: func(newRaftId uint64, config *Config) (*raftBackend, error) {
+		newDetachedRaftBackendWithIdAndPeersFunc: func(newRaftId uint64, config *Config, peers []*pb.RaftPeer) (*raftBackend, error) {
 			return mockBackend, nil
 		},
+		logger: log.WithFields(log.Fields{}),
 	}
 
-	backend, err := mc.newDetachedRaftBackend(dataStructureId, raftId, DefaultConfig())
+	backend, err := mc.newDetachedRaftBackend(dataStructureId, raftId, DefaultConfig(), nil)
 	assert.Nil(t, err)
 	assert.Equal(t, mockBackend, backend)
 	mockMembership.AssertNumberOfCalls(t, "addDataStructureToRaftIdMapping", 1)
@@ -128,6 +132,7 @@ func TestMembershipCacheCreateInteractiveRaftStepStop(t *testing.T) {
 	mockRaftNode := new(mockRaftNode)
 	mockRaftNode.On("Step", mock.Anything, msg).Return(nil)
 	mockRaftNode.On("ProposeConfChange", mock.Anything, mock.Anything).Return(nil)
+	mockRaftNode.On("Stop").Return()
 
 	mockBackend := &raftBackend{
 		raftId:   raftId,
@@ -140,12 +145,13 @@ func TestMembershipCacheCreateInteractiveRaftStepStop(t *testing.T) {
 		addressToConnection: &sync.Map{},
 		raftIdToRaftBackend: &sync.Map{},
 		membership:          mockMembership,
-		newInteractiveRaftBackendFunc: func(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
+		newInteractiveRaftBackendForExistingGroupFunc: func(config *Config, provider SnapshotProvider) (*raftBackend, error) {
 			return mockBackend, nil
 		},
+		logger: log.WithFields(log.Fields{}),
 	}
 
-	backend, err := mc.newInteractiveRaftBackend(dataStructureId, DefaultConfig(), nil, func() ([]byte, error) { return make([]byte, 0), nil })
+	backend, err := mc.newInteractiveRaftBackendForExistingGroup(dataStructureId, DefaultConfig(), func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
 	assert.Equal(t, mockBackend, backend)
 	mockMembership.AssertNumberOfCalls(t, "addDataStructureToRaftIdMapping", 1)
@@ -169,18 +175,12 @@ func TestMembershipCacheStartRaftGroup(t *testing.T) {
 	networkAddress1 := "666_Fake_Street"
 
 	mockMembership := new(mockMemberList)
-	mockMembership.On("pickFromMetadata", mock.Anything, 2, mock.Anything).Return(pickedPeers)
+	mockMembership.On("pickReplicaPeers", mock.Anything, 2, mock.Anything).Return(pickedPeers)
 	mockMembership.On("getAddressForPeer", pickedPeers[0]).Return(networkAddress1)
 	mockMembership.On("getAddressForPeer", pickedPeers[1]).Return(networkAddress0)
 
-	resp1 := &pb.StartRaftResponse{
-		RaftId:      uint64(99),
-		RaftAddress: networkAddress1,
-	}
-	resp2 := &pb.StartRaftResponse{
-		RaftId:      uint64(88),
-		RaftAddress: networkAddress0,
-	}
+	resp1 := &pb.StartRaftResponse{}
+	resp2 := &pb.StartRaftResponse{}
 	mockClient1 := new(mockCopyCatServiceClient)
 	mockClient1.On("StartRaft", mock.Anything, mock.Anything).Return(resp1, nil)
 	mockClient1.On("StopRaft", mock.Anything, mock.Anything).Return(nil, nil)
@@ -215,29 +215,24 @@ func TestMembershipCacheStartRaftGroup(t *testing.T) {
 			}
 			return nil, fmt.Errorf("Unknown network address ... you didn't set the test up correctly!")
 		},
-		chooserFunc: func(peerId uint64, tags map[string]string) bool {
-			return true
-		},
 		logger: log.WithFields(log.Fields{}),
 	}
 
 	dataStructureId, err := newId()
 	assert.Nil(t, err)
-	peers, err := mc.chooseReplicaNode(dataStructureId, 2)
+	peers, err := mc.startNewRaftGroup(dataStructureId, 2)
 	assert.Nil(t, err)
 	assert.Equal(t, 2, len(peers))
-	assert.Equal(t, uint64(88), peers[0].Id)
-	assert.Equal(t, networkAddress0, peers[0].RaftAddress)
-	assert.Equal(t, uint64(99), peers[1].Id)
-	assert.Equal(t, networkAddress1, peers[1].RaftAddress)
-	mockMembership.AssertNumberOfCalls(t, "pickFromMetadata", 1)
+	assert.Equal(t, networkAddress0, peers[1].PeerAddress)
+	assert.Equal(t, networkAddress1, peers[0].PeerAddress)
+	mockMembership.AssertNumberOfCalls(t, "pickReplicaPeers", 1)
 	mockMembership.AssertNumberOfCalls(t, "getAddressForPeer", 2)
 	mockClient1.AssertNumberOfCalls(t, "StartRaft", 1)
 	mockClient2.AssertNumberOfCalls(t, "StartRaft", 1)
 
-	err = mc.stopRaftRemotely(peers[0])
+	err = mc.stopRaftRemotely(*peers[0])
 	assert.Nil(t, err)
-	err = mc.stopRaftRemotely(peers[1])
+	err = mc.stopRaftRemotely(*peers[1])
 	assert.Nil(t, err)
 	mockClient1.AssertNumberOfCalls(t, "StopRaft", 1)
 	mockClient2.AssertNumberOfCalls(t, "StopRaft", 1)
@@ -251,16 +246,11 @@ func TestMembershipCacheStartRaftGroupWithFailure(t *testing.T) {
 	networkAddress := "555_Fake_Street"
 
 	mockMembership := new(mockMemberList)
-	mockMembership.On("pickFromMetadata", mock.Anything, 1, make([]uint64, 0)).Return(pickedPeers[:1])
-	mockMembership.On("pickFromMetadata", mock.Anything, 1, pickedPeers[:1]).Return(pickedPeers[1:2])
+	mockMembership.On("pickReplicaPeers", mock.Anything, 1, mock.Anything).Return(pickedPeers)
 	mockMembership.On("getAddressForPeer", pickedPeers[0]).Return("")
 	mockMembership.On("getAddressForPeer", pickedPeers[1]).Return(networkAddress)
 
-	resp := &pb.StartRaftResponse{
-		RaftId:      uint64(88),
-		RaftAddress: networkAddress,
-	}
-
+	resp := &pb.StartRaftResponse{}
 	mockClient := new(mockCopyCatServiceClient)
 	mockClient.On("StartRaft", mock.Anything, mock.Anything).Return(resp, nil)
 	mockClient.On("StopRaft", mock.Anything, mock.Anything).Return(nil, nil)
@@ -273,30 +263,23 @@ func TestMembershipCacheStartRaftGroupWithFailure(t *testing.T) {
 		connectionCacheFunc: func(m *sync.Map, address string) (*grpc.ClientConn, error) {
 			return &grpc.ClientConn{}, nil
 		},
-		chooserFunc: func(peerId uint64, tags map[string]string) bool {
-			return true
-		},
 		logger: log.WithFields(log.Fields{}),
 	}
 
 	dataStructureId, err := newId()
 	assert.Nil(t, err)
-	peers, err := mc.chooseReplicaNode(dataStructureId, 1)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(peers))
-	assert.Equal(t, uint64(88), peers[0].Id)
-	assert.Equal(t, networkAddress, peers[0].RaftAddress)
-	mockMembership.AssertNumberOfCalls(t, "pickFromMetadata", 2)
-	mockMembership.AssertNumberOfCalls(t, "getAddressForPeer", 2)
-	mockClient.AssertNumberOfCalls(t, "StartRaft", 1)
-
-	err = mc.stopRaftRemotely(peers[0])
-	assert.Nil(t, err)
-	mockClient.AssertNumberOfCalls(t, "StopRaft", 1)
+	peers, err := mc.startNewRaftGroup(dataStructureId, 1)
+	assert.NotNil(t, err)
+	assert.Nil(t, peers)
+	mockMembership.AssertNumberOfCalls(t, "pickReplicaPeers", 4)
+	mockMembership.AssertNumberOfCalls(t, "getAddressForPeer", 16)
+	mockClient.AssertNumberOfCalls(t, "StartRaft", 4)
+	mockClient.AssertNumberOfCalls(t, "StopRaft", 4)
 }
 
 func TestMembershipCacheCreateConnection(t *testing.T) {
 	config := DefaultConfig()
+	config.logger = log.WithFields(log.Fields{})
 	m := new(mockMembershipProxy)
 	transport, err := newTransport(config, m)
 	assert.Nil(t, err)

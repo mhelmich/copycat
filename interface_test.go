@@ -47,7 +47,7 @@ func loadTestCat(cc CopyCat) *testCat {
 		return nil
 	}
 
-	cat.proposeCh, cat.commitCh, cat.errorCh, cat.snapshotConsumer, err = cc.ConnectToDataStructure(catId, cat.providerSnapshot)
+	cat.proposeCh, cat.commitCh, cat.errorCh, cat.snapshotConsumer, err = cc.SubscribeToDataStructure(catId, cat.providerSnapshot)
 	if err != nil {
 		return nil
 	}

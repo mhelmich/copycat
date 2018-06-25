@@ -17,7 +17,7 @@
 package copycat
 
 import (
-	"strings"
+	"strconv"
 
 	"github.com/mhelmich/copycat/pb"
 	log "github.com/sirupsen/logrus"
@@ -26,13 +26,24 @@ import (
 type copyCatImpl struct {
 	transport  *copyCatTransport
 	membership membershipProxy
-	// this nodes CopyCay address in order to localize requests
-	myAddress string
-	config    *Config
-	logger    *log.Entry
+	config     *Config
+	logger     *log.Entry
+}
+
+func sanitizeConfig(config *Config) {
+	if config.logger == nil {
+		config.logger = log.WithFields(log.Fields{
+			"component":    "copycat",
+			"host":         config.Hostname,
+			"copycat_port": strconv.Itoa(config.CopyCatPort),
+			"serf_port":    strconv.Itoa(config.GossipPort),
+		})
+	}
 }
 
 func newCopyCat(config *Config) (*copyCatImpl, error) {
+	sanitizeConfig(config)
+
 	cache, err := newMembershipCache(config)
 	if err != nil {
 		config.logger.Errorf("Can't create membership: %s", err.Error())
@@ -51,7 +62,6 @@ func newCopyCat(config *Config) (*copyCatImpl, error) {
 	cc := &copyCatImpl{
 		transport:  t,
 		membership: cache,
-		myAddress:  config.address(),
 		config:     config,
 		logger:     config.logger,
 	}
@@ -64,50 +74,53 @@ func (c *copyCatImpl) NewDataStructureID() (ID, error) {
 	return newId()
 }
 
-func (c *copyCatImpl) ConnectToDataStructureWithStringID(id string, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error) {
+func (c *copyCatImpl) SubscribeToDataStructureWithStringID(id string, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error) {
 	i, err := parseIdFromString(id)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 
-	return c.ConnectToDataStructure(i, provider)
+	return c.SubscribeToDataStructure(i, provider)
 }
 
-// takes one operation, finds the leader remotely, and sends the operation to the leader
-func (c *copyCatImpl) ConnectToDataStructure(id ID, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error) {
+// takes a data structure id, joins the raft group as learner, assembles and exposes the raft log
+func (c *copyCatImpl) SubscribeToDataStructure(id ID, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error) {
 	var interactiveBackend *raftBackend
 	var err error
+	var remoteRaftPeers []*pb.RaftPeer
+	var remoteRaftPeer *pb.RaftPeer
 
-	peer, err := c.membership.onePeerForDataStructureId(id)
-	c.logger.Infof("Found data structure [%s] on peer: %s", id, peer.String())
-	if peer != nil {
-		interactiveBackend, err = c.connectToExistingRaftGroup(id, c.config, peer, provider)
-	} else {
+	remoteRaftPeer, _ = c.membership.onePeerForDataStructureId(id)
+	if remoteRaftPeer == nil {
+		c.logger.Infof("Can't find data structure [%s] anywhere. Starting new raft group...", id)
 		// TODO: revisit the concept of number of replicas
 		// In my mind the number of replicas is just a proxy for how paranoid you are...
 		// Maybe it's easier for the user to fhink about it as different use cases.
 		// Meh, paranoia and consistency vs real consistency
-		interactiveBackend, err = c.startNewRaftGroup(id, 1, provider)
+		remoteRaftPeers, err = c.membership.startNewRaftGroup(id, 2)
+		if err != nil {
+			c.logger.Errorf("Can't connect to data structure [%s]: %s", id, err.Error())
+			return nil, nil, nil, nil, err
+		}
+
+		interactiveBackend, err = c.subscribeToExistingRaftGroup(id, c.config, remoteRaftPeers[0], provider)
+		if err != nil {
+			c.logger.Errorf("Can't connect to data structure [%s]: %s", id, err.Error())
+			return nil, nil, nil, nil, err
+		}
+	} else {
+		c.logger.Infof("Found data structure [%s] on peer: %s", id, remoteRaftPeer.String())
+		interactiveBackend, err = c.subscribeToExistingRaftGroup(id, c.config, remoteRaftPeer, provider)
+		if err != nil {
+			c.logger.Errorf("Can't connect to data structure [%s]: %s", id, err.Error())
+			return nil, nil, nil, nil, err
+		}
 	}
 
-	if err != nil {
-		c.logger.Errorf("Can't connect to data structure [%s]: %s", id, err.Error())
-		return nil, nil, nil, nil, err
-	}
 	return interactiveBackend.proposeChan, interactiveBackend.commitChan, interactiveBackend.errorChan, func() ([]byte, error) { return interactiveBackend.snapshot() }, nil
 }
 
-// takes a data strucutre id, has this node join the raft group, finds the leader of the raft group, and tries to transfer leadership to this node
-func (c *copyCatImpl) TakeOwnershipOfDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer) {
-	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
-}
-
-// takes a data structure id, joins the raft group as learner, assembles and exposes the raft log
-func (c *copyCatImpl) SubscribeToDataStructure(id uint64, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer) {
-	return nil, nil, nil, func() ([]byte, error) { return nil, nil }
-}
-
-func (c *copyCatImpl) connectToExistingRaftGroup(dataStructureId ID, config *Config, peer *pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
+func (c *copyCatImpl) subscribeToExistingRaftGroup(dataStructureId ID, config *Config, peer *pb.RaftPeer, provider SnapshotProvider) (*raftBackend, error) {
 	// 1. create new interactive raft in join mode (without any peers)
 	backend, err := c.membership.newInteractiveRaftBackendForExistingGroup(dataStructureId, config, provider)
 	if err != nil {
@@ -117,36 +130,6 @@ func (c *copyCatImpl) connectToExistingRaftGroup(dataStructureId ID, config *Con
 	err = c.membership.addRaftToGroupRemotely(backend.raftId, peer)
 	// 3. -> profit
 	return backend, err
-}
-
-func (c *copyCatImpl) startNewRaftGroup(dataStructureId ID, numReplicas int, provider SnapshotProvider) (*raftBackend, error) {
-	c.logger.Infof("Starting a new raft group around data structure with id [%s] and [%d] replicas", dataStructureId, numReplicas)
-	remoteRafts, err := c.membership.chooseReplicaNode(dataStructureId, numReplicas)
-	if err != nil && err == errCantFindEnoughReplicas {
-		peersString := make([]string, len(remoteRafts))
-		for idx, peer := range remoteRafts {
-			peersString[idx] = peer.String()
-		}
-		c.logger.Warnf("Can't fulfill replication request. Want replicas %d got only %d [%s]: %s", numReplicas, len(remoteRafts), strings.Join(peersString, ", "), err.Error())
-	} else if err != nil {
-		return nil, err
-	}
-
-	peersString := make([]string, len(remoteRafts))
-	for idx, peer := range remoteRafts {
-		peersString[idx] = peer.String()
-	}
-	c.logger.Infof("Started %d remote rafts: %s", len(remoteRafts), strings.Join(peersString, ", "))
-
-	localRaft, err := c.membership.newInteractiveRaftBackend(dataStructureId, c.config, remoteRafts, provider)
-	if err != nil {
-		for _, peer := range remoteRafts {
-			defer c.membership.stopRaftRemotely(peer)
-		}
-		return nil, err
-	}
-
-	return localRaft, err
 }
 
 func (c *copyCatImpl) Shutdown() {

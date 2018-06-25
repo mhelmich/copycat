@@ -17,6 +17,7 @@
 package copycat
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -27,6 +28,7 @@ import (
 	"github.com/hashicorp/serf/serf"
 	"github.com/mhelmich/copycat/pb"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -46,6 +48,7 @@ const (
 type membership struct {
 	serfNodeId uint64
 	serf       *serf.Serf
+	// TODO - naive implementation
 	// this mutex protects concurrent access to serf tags
 	// as you can see this is not exactly a fine-grained approach
 	// if this becomes a problem, we can think about a better way to do this
@@ -58,8 +61,11 @@ type membership struct {
 	memberIdToTags           *sync.Map
 	raftIdToAddress          map[uint64]string
 	dataStructureIdToRaftIds map[ID]map[uint64]bool
+	crush                    *crush
 
-	logger *log.Entry
+	// this sync map mimics the following map: map[uint64]*rate.Limiter
+	serfQueryRaftLimiers *sync.Map
+	logger               *log.Entry
 }
 
 func newMembership(config *Config) (*membership, error) {
@@ -120,7 +126,9 @@ func newMembership(config *Config) (*membership, error) {
 		memberIdToTags:           &sync.Map{},
 		raftIdToAddress:          make(map[uint64]string),
 		dataStructureIdToRaftIds: make(map[ID]map[uint64]bool),
-		logger: logger,
+		crush:                newCrush(),
+		serfQueryRaftLimiers: &sync.Map{},
+		logger:               logger,
 	}
 
 	go m.handleSerfEvents(serfEventCh)
@@ -180,7 +188,10 @@ func (m *membership) handleMemberJoinEvent(me serf.MemberEvent) {
 			}
 			raftIds[raftId] = false
 			m.dataStructureIdToRaftIds[dsId] = raftIds
+			m.logger.Debugf("Added from [%s] dsId [%s] raft [%d %x] address [%s]", mem.Name, dsIdStr, raftId, raftId, addr)
 		}
+
+		m.crush.updatePeer(memberId, mem.Tags)
 	}
 }
 
@@ -205,10 +216,12 @@ func (m *membership) handleMemberLeaveEvent(me serf.MemberEvent) {
 
 		for dsIdStr, raftId := range hi.DataStructureToRaftMapping {
 			delete(m.raftIdToAddress, raftId)
-			m.logger.Infof("Deleted %d", raftId)
 			dsId, _ := parseIdFromString(dsIdStr)
 			delete(m.dataStructureIdToRaftIds[dsId], raftId)
+			m.logger.Debugf("Deleted from [%s] dsId [%s] raft [%d %x]", mem.Name, dsIdStr, raftId, raftId)
 		}
+
+		m.crush.removePeer(memberId, mem.Tags)
 	}
 }
 
@@ -230,7 +243,7 @@ func (m *membership) handleQuery(query *serf.Query) {
 	}
 
 	if err != nil {
-		m.logger.Errorf("Error processing query: %s", err.Error())
+		m.logger.Warnf("Error processing query: %s", err.Error())
 		return
 	}
 
@@ -249,19 +262,23 @@ func (m *membership) handleRaftIdQuery(query *serf.Query) ([]byte, error) {
 
 	addr, ok := m.raftIdToAddress[req.RaftId]
 	if !ok {
+		// returning an error here will make the this serf node not send a response
+		// back to the querying node which in the end could make the querying node
+		// hang for the entire timeout if no nodes every answers
 		return nil, fmt.Errorf("I don't know about raftId [%d] myself", req.RaftId)
 	}
 
 	resp := &pb.RaftIdQueryResponse{
-		RaftId:  req.RaftId,
-		Address: addr,
+		Peer: &pb.RaftPeer{
+			RaftId:      req.RaftId,
+			PeerAddress: addr,
+		},
 	}
 
 	return resp.Marshal()
 }
 
 func (m *membership) handleDataStructureIdQuery(query *serf.Query) ([]byte, error) {
-	m.logger.Infof("Handling data structure id query...")
 	req := &pb.DataStructureIdRequest{}
 	err := req.Unmarshal(query.Payload)
 	if err != nil {
@@ -270,16 +287,17 @@ func (m *membership) handleDataStructureIdQuery(query *serf.Query) ([]byte, erro
 
 	id, _ := parseIdFromProto(req.DataStructureId)
 	peers := m.peersForDataStructureId(id)
-	if peers == nil || len(peers) == 0 {
+	if peers == nil {
+		// returning an error here will make the this serf node not send a response
+		// back to the querying node which in the end could make the querying node
+		// hang for the entire timeout if no nodes every answers
 		return nil, fmt.Errorf("I don't know about data structure id [%s] myself", id)
 	}
 
 	resp := &pb.DataStructureIdResponse{
-		RaftId:  peers[0].Id,
-		Address: peers[0].RaftAddress,
+		Peers: peers,
 	}
 
-	m.logger.Infof("Sending response: %s", resp.String())
 	return resp.Marshal()
 }
 
@@ -353,7 +371,49 @@ func (m *membership) getMyHostedItems() (*pb.HostedItems, error) {
 	return hi, nil
 }
 
-func (m *membership) findDataStructureWithId(id ID) (*pb.Peer, error) {
+func (m *membership) findRaftWithId(raftId uint64) (*pb.RaftPeer, error) {
+	req := &pb.RaftIdQueryRequest{RaftId: raftId}
+	data, err := req.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
+	serfQueryResp, err := m.serf.Query(strconv.Itoa(int(pb.RaftIdQuery)), data, m.serf.DefaultQueryParams())
+	if err != nil {
+		return nil, err
+	}
+
+	defer serfQueryResp.Close()
+	serfRespCh := serfQueryResp.ResponseCh()
+	m.logger.Debugf("Sent serf query: %s", req.String())
+
+	for {
+		select {
+		case serfResp, ok := <-serfRespCh:
+			if !ok {
+				return nil, fmt.Errorf("Serf response channel was closed")
+			}
+
+			if serfResp.Payload != nil {
+				resp := &pb.RaftIdQueryResponse{}
+				err = resp.Unmarshal(serfResp.Payload)
+
+				if err == nil {
+					// this is pretty much free gossip
+					// pick it up as we go
+					// NB: assume we have the mutex already!!
+					m.raftIdToAddress[resp.Peer.RaftId] = resp.Peer.PeerAddress
+					m.logger.Debugf("Added query from [%s] raft [%d %x] address [%s]", serfResp.From, resp.Peer.RaftId, resp.Peer.RaftId, resp.Peer.PeerAddress)
+					return resp.Peer, nil
+				}
+			}
+		case <-time.After(time.Until(serfQueryResp.Deadline())):
+			return nil, fmt.Errorf("Serf query timed out: %s", req.String())
+		}
+	}
+}
+
+func (m *membership) findDataStructureWithId(id ID) (*pb.RaftPeer, error) {
 	req := &pb.DataStructureIdRequest{DataStructureId: id.toProto()}
 	data, err := req.Marshal()
 	if err != nil {
@@ -367,7 +427,7 @@ func (m *membership) findDataStructureWithId(id ID) (*pb.Peer, error) {
 
 	defer serfQueryResp.Close()
 	serfRespCh := serfQueryResp.ResponseCh()
-	m.logger.Infof("Sent serf query: %s", req.String())
+	m.logger.Debugf("Sent serf query: %s", req.String())
 
 	for {
 		select {
@@ -379,11 +439,23 @@ func (m *membership) findDataStructureWithId(id ID) (*pb.Peer, error) {
 			if serfResp.Payload != nil {
 				resp := &pb.DataStructureIdResponse{}
 				err = resp.Unmarshal(serfResp.Payload)
-				if err == nil {
-					return &pb.Peer{
-						Id:          resp.RaftId,
-						RaftAddress: resp.Address,
-					}, nil
+
+				if err == nil && len(resp.Peers) > 0 {
+					// this is pretty much free gossip
+					// pick it up as we go
+					// NB: assume we have the mutex already!!
+					for _, peer := range resp.Peers {
+						m.raftIdToAddress[peer.RaftId] = peer.PeerAddress
+						rafts, ok := m.dataStructureIdToRaftIds[id]
+						if !ok {
+							rafts = make(map[uint64]bool)
+							m.dataStructureIdToRaftIds[id] = rafts
+						}
+						rafts[peer.RaftId] = true
+						m.logger.Debugf("Added query from [%s] dsId [%s] raft [%d %x] address [%s]", serfResp.From, id.String(), peer.RaftId, peer.RaftId, peer.PeerAddress)
+					}
+
+					return resp.Peers[0], nil
 				}
 			}
 		case <-time.After(time.Until(serfQueryResp.Deadline())):
@@ -395,8 +467,29 @@ func (m *membership) findDataStructureWithId(id ID) (*pb.Peer, error) {
 func (m *membership) getAddressForRaftId(raftId uint64) string {
 	m.serfTagMutex.Lock()
 	defer m.serfTagMutex.Unlock()
-
-	return m.raftIdToAddress[raftId]
+	addr, ok := m.raftIdToAddress[raftId]
+	// TODO - certainly this can be more intelligent
+	// than just blocking everybody and just letting one person
+	// per second in
+	// I can at least use a map...
+	if !ok || addr == "" {
+		v, limOk := m.serfQueryRaftLimiers.Load(raftId)
+		if !limOk {
+			v, _ = m.serfQueryRaftLimiers.LoadOrStore(raftId, rate.NewLimiter(1, 1))
+		}
+		limiter := v.(*rate.Limiter)
+		if limiter.Allow() {
+			// if we don't find an address in our local cache,
+			// we take a look
+			go func() {
+				// this method has as side-effect that internal maps
+				// are being updated with lastest gossip
+				m.findRaftWithId(raftId)
+				m.serfQueryRaftLimiers.Delete(raftId)
+			}()
+		}
+	}
+	return addr
 }
 
 func (m *membership) getAddr(tags map[string]string) string {
@@ -417,7 +510,7 @@ func (m *membership) getAddressForPeer(peerId uint64) string {
 // We don't care to get the complete list of peers - one is enough.
 // What we do care about though is that if we say the data structure doesn't exist,
 // it really doesn't exist.
-func (m *membership) onePeerForDataStructureId(dataStructureId ID) (*pb.Peer, error) {
+func (m *membership) onePeerForDataStructureId(dataStructureId ID) (*pb.RaftPeer, error) {
 	m.serfTagMutex.Lock()
 	defer m.serfTagMutex.Unlock()
 
@@ -435,13 +528,14 @@ func (m *membership) onePeerForDataStructureId(dataStructureId ID) (*pb.Peer, er
 		return peer, nil
 	}
 
+	m.logger.Warnf("Cache hit: %d", len(raftIdsMap))
 	// cache hit!
 	for raftId := range raftIdsMap {
 		v, ok := m.raftIdToAddress[raftId]
 		if ok {
-			return &pb.Peer{
-				Id:          raftId,
-				RaftAddress: v,
+			return &pb.RaftPeer{
+				RaftId:      raftId,
+				PeerAddress: v,
 			}, nil
 		}
 	}
@@ -449,21 +543,21 @@ func (m *membership) onePeerForDataStructureId(dataStructureId ID) (*pb.Peer, er
 	return nil, fmt.Errorf("Can't find data structure with id [%d]", dataStructureId)
 }
 
-func (m *membership) peersForDataStructureId(dataStructureId ID) []pb.Peer {
+func (m *membership) peersForDataStructureId(dataStructureId ID) []*pb.RaftPeer {
 	raftIdsMap, ok := m.dataStructureIdToRaftIds[dataStructureId]
 	if !ok {
 		m.logger.Infof("I don't know data structure with id [%s]", dataStructureId.String())
-		return make([]pb.Peer, 0)
+		return nil
 	}
 
-	peers := make([]pb.Peer, len(raftIdsMap))
+	peers := make([]*pb.RaftPeer, len(raftIdsMap))
 	i := 0
 	for raftId := range raftIdsMap {
 		v, ok := m.raftIdToAddress[raftId]
 		if ok {
-			peers[i] = pb.Peer{
-				Id:          raftId,
-				RaftAddress: v,
+			peers[i] = &pb.RaftPeer{
+				RaftId:      raftId,
+				PeerAddress: v,
 			}
 			i++
 		}
@@ -471,39 +565,53 @@ func (m *membership) peersForDataStructureId(dataStructureId ID) []pb.Peer {
 	return peers[:i]
 }
 
-func (m *membership) myGossipNodeId() uint64 {
-	return m.serfNodeId
+func (m *membership) pickReplicaPeers(dataStructureId ID, numReplicas int) []uint64 {
+	wv := m.crush.place(dataStructureId, numReplicas, 1, 1)
+	return wv.peerIds
 }
 
-func (m *membership) pickFromMetadata(picker func(peerId uint64, tags map[string]string) bool, numItemsToPick int, avoidMe []uint64) []uint64 {
-	pickedPeers := make([]uint64, numItemsToPick)
-	idx := 0
+// Result will look like this:
+// [
+//   {
+//     "01CGWDXKV33BYBWK8MVNE8EHQQ": [
+//       "8525546599457777599 7650d37640b867bf",
+//       "6962446102838008331 609f93d787765a0b",
+//       "14588314967425913900 ca741b2bb0ef942c"
+//     ]
+//   },
+//   {
+//     "14588314967425913900 ca741b2bb0ef942c": "address_3",
+//     "6962446102838008331 609f93d787765a0b": "address_2",
+//     "8525546599457777599 7650d37640b867bf": "address_1"
+//   }
+// ]
+func (m *membership) marshalMembershipToJson() string {
+	m.serfTagMutex.Lock()
+	defer m.serfTagMutex.Unlock()
 
-	// cache in map for fast contains
-	misfits := make(map[uint64]bool)
-	for _, v := range avoidMe {
-		misfits[v] = false
+	dsIdToRaftIds := make(map[string][]string)
+	for k, v := range m.dataStructureIdToRaftIds {
+		a := make([]string, len(v))
+		i := 0
+		for raftId, _ := range v {
+			a[i] = fmt.Sprintf("%d %x", raftId, raftId)
+			i++
+		}
+		dsIdToRaftIds[k.String()] = a
 	}
 
-	m.memberIdToTags.Range(func(key interface{}, value interface{}) bool {
-		id := key.(uint64)
-		t := value.(map[string]string)
-		// if it's in the list of nodes to avoid, there's no point in running the picker
-		_, contains := misfits[id]
-		if !contains {
-			shouldPick := picker(id, t)
-			// add the peer if the picker returned true
-			if shouldPick {
-				pickedPeers[idx] = id
-				idx++
-			}
-		}
+	raftIdToAddr := make(map[string]string)
+	for k, v := range m.raftIdToAddress {
+		key := fmt.Sprintf("%d %x", k, k)
+		raftIdToAddr[key] = v
+	}
 
-		// stop iterating if the array is full
-		return idx < numItemsToPick
-	})
+	a := make([]interface{}, 2)
+	a[0] = dsIdToRaftIds
+	a[1] = raftIdToAddr
 
-	return pickedPeers[:idx]
+	bites, _ := json.MarshalIndent(a, "", "  ")
+	return string(bites)
 }
 
 func (m *membership) stop() error {

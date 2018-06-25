@@ -35,6 +35,9 @@ import (
 
 func TestTransportBasic(t *testing.T) {
 	config := DefaultConfig()
+	config.logger = log.WithFields(log.Fields{
+		"component": "copycat_transport",
+	})
 	config.CopyCatDataDir = "./test-TestTransportBasic-" + uint64ToString(randomRaftId()) + "/"
 	err := os.MkdirAll(config.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
@@ -65,7 +68,7 @@ func TestTransportSendReceiveMessages(t *testing.T) {
 
 	config2 := DefaultConfig()
 	config2.CopyCatPort = config1.CopyCatPort + 10000
-	config1.logger = log.WithFields(log.Fields{})
+	config2.logger = log.WithFields(log.Fields{})
 	config2.CopyCatDataDir = "./test-TestTransportSendReceiveMessages-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
@@ -148,7 +151,7 @@ func TestTransportReportFailures(t *testing.T) {
 
 func TestTransportStartStopRaft(t *testing.T) {
 	m := new(mockMembershipProxy)
-	m.On("newDetachedRaftBackend", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
+	m.On("newDetachedRaftBackend", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, nil)
 	m.On("stopRaft", mock.Anything).Return(nil)
 
 	config := DefaultConfig()

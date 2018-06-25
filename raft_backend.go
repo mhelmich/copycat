@@ -19,6 +19,7 @@ package copycat
 import (
 	"context"
 	"encoding/hex"
+	"sync/atomic"
 	"time"
 
 	"github.com/coreos/etcd/raft"
@@ -28,11 +29,11 @@ import (
 )
 
 type raftBackend struct {
-	raftId    uint64        // cluster-wide unique raft ID
-	peers     []pb.Peer     // raft peer URLs
-	raftNode  raft.Node     // the actual raft node
-	transport raftTransport // the transport used to send raft messages to other backends
-	store     store         // the raft data store
+	raftId    uint64         // cluster-wide unique raft ID
+	peers     []*pb.RaftPeer // raft peer URLs
+	raftNode  raft.Node      // the actual raft node
+	transport raftTransport  // the transport used to send raft messages to other backends
+	store     store          // the raft data store
 	// proposed changes to the data of this raft group
 	// write-only for the consumer
 	// read-only for the raftBacken
@@ -73,28 +74,18 @@ type raftBackend struct {
 	numberOfSnapshotsToKeep int
 	logger                  *log.Entry    // the logger to use by this struct
 	stopChan                chan struct{} // signals this raft backend should shut down (only used internally)
-}
-
-func newInteractiveRaftBackend(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
-	newRaftId := randomRaftId()
-	// adding myself to the list of peers
-	peers = append(peers, pb.Peer{
-		Id:          newRaftId,
-		RaftAddress: config.address(),
-	})
-
-	return _newRaftBackend(newRaftId, config, peers, provider, true)
+	alreadyClosed           int32         // atomic boolean indicating whether this raft has been closed or not
 }
 
 func newInteractiveRaftBackendForExistingGroup(config *Config, provider SnapshotProvider) (*raftBackend, error) {
 	return _newRaftBackend(randomRaftId(), config, nil, provider, true)
 }
 
-func newDetachedRaftBackendWithId(newRaftId uint64, config *Config) (*raftBackend, error) {
-	return _newRaftBackend(newRaftId, config, nil, nil, false)
+func newDetachedRaftBackendWithIdAndPeers(newRaftId uint64, config *Config, peers []*pb.RaftPeer) (*raftBackend, error) {
+	return _newRaftBackend(newRaftId, config, peers, nil, false)
 }
 
-func _newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider SnapshotProvider, isInteractive bool) (*raftBackend, error) {
+func _newRaftBackend(newRaftId uint64, config *Config, peers []*pb.RaftPeer, provider SnapshotProvider, isInteractive bool) (*raftBackend, error) {
 	logger := config.logger.WithFields(log.Fields{
 		"component": "raftBackend",
 		"raftIdHex": hex.EncodeToString(uint64ToBytes(newRaftId)),
@@ -142,8 +133,8 @@ func _newRaftBackend(newRaftId uint64, config *Config, peers []pb.Peer, provider
 		raftPeers := make([]raft.Peer, len(peers))
 		for i := range peers {
 			raftPeers[i] = raft.Peer{
-				ID:      peers[i].Id,
-				Context: []byte(peers[i].RaftAddress),
+				ID:      peers[i].RaftId,
+				Context: []byte(peers[i].PeerAddress),
 			}
 		}
 
@@ -257,12 +248,13 @@ func (rb *raftBackend) runRaftStateMachine() {
 		case rd := <-rb.raftNode.Ready():
 			if !rb.procesReady(rd) {
 				rb.logger.Error("Publishing committed entries failed. Shutting down...")
-				rb._stop()
+				rb._stop(true)
 				return
 			}
 
 		case <-rb.stopChan:
 			rb.logger.Info("Stopping raft state machine loop")
+			rb._stop(false)
 			return
 		}
 	}
@@ -286,10 +278,11 @@ func (rb *raftBackend) procesReady(rd raft.Ready) bool {
 	sendingErrors := rb.transport.sendMessages(rd.Messages)
 	if sendingErrors != nil {
 		for _, failedMsg := range sendingErrors.failedMessages {
-			rb.logger.Errorf("Reporting raft [%d] unreachable", failedMsg.To)
-			rb.raftNode.ReportUnreachable(failedMsg.To)
+			// TODO - think this through
+			// rb.logger.Errorf("Reporting raft [%d %x] unreachable", failedMsg.To, failedMsg.To)
+			// rb.raftNode.ReportUnreachable(failedMsg.To)
 			if isMsgSnap(failedMsg) {
-				rb.logger.Errorf("Reporting snapshot failure for raft [%d]", failedMsg.To)
+				rb.logger.Errorf("Reporting snapshot failure for raft [%d %x]", failedMsg.To, failedMsg.To)
 				rb.raftNode.ReportSnapshot(failedMsg.To, raft.SnapshotFailure)
 			}
 		}
@@ -466,35 +459,39 @@ func (rb *raftBackend) snapshot() ([]byte, error) {
 // of the raft protocol.
 // Adding learners and never promoting them to
 // voters puts us in danger to lose data.
-// I'll play it save for now and add only voters.
 func (rb *raftBackend) addRaftToMyGroup(ctx context.Context, newRaftId uint64) error {
 	cc := raftpb.ConfChange{
-		Type:   raftpb.ConfChangeAddNode,
+		Type:   raftpb.ConfChangeAddLearnerNode,
 		ID:     rb.latestConfChangeId + 1,
 		NodeID: newRaftId,
 	}
 	return rb.raftNode.ProposeConfChange(ctx, cc)
 }
 
-func (rb *raftBackend) _stop() {
-	// stop the raft node
-	rb.raftNode.Stop()
-	// stop the raft state machine
-	rb.stopChan <- struct{}{}
-	close(rb.stopChan)
+// can be called any number of times
+// but will only do work the first time
+func (rb *raftBackend) _stop(shouldCloseStopChan bool) {
+	if atomic.CompareAndSwapInt32(&rb.alreadyClosed, int32(0), int32(1)) {
+		// stop the raft node
+		rb.raftNode.Stop()
+		// stop the raft state machine
+		if shouldCloseStopChan {
+			close(rb.stopChan)
+		}
 
-	if rb.commitChan != nil {
-		close(rb.commitChan)
-	}
+		if rb.commitChan != nil {
+			close(rb.commitChan)
+		}
 
-	if rb.errorChan != nil {
-		close(rb.errorChan)
+		if rb.errorChan != nil {
+			close(rb.errorChan)
+		}
 	}
 }
 
 func (rb *raftBackend) stop() {
 	rb.logger.Warnf("Shutting down raft backend %d %x", rb.raftId, rb.raftId)
-	// this is an interesting idea
+	// TODO - this is an interesting idea
 	// removing myself out of a raft group will make this raft node shut down
 	// evatually after the conf change has been committed
 	// after the raft state machine processed this change, _stop() is being called
@@ -507,4 +504,6 @@ func (rb *raftBackend) stop() {
 	if err != nil {
 		rb.logger.Errorf("Can't remove myself out of raft group: %s", err.Error())
 	}
+	// call internal stop
+	rb._stop(true)
 }

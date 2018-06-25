@@ -32,10 +32,8 @@ type membershipCache struct {
 	membership                                    memberList
 	raftIdToRaftBackend                           *sync.Map
 	addressToConnection                           *sync.Map
-	chooserFunc                                   func(peerId uint64, tags map[string]string) bool
-	newInteractiveRaftBackendFunc                 func(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error)
 	newInteractiveRaftBackendForExistingGroupFunc func(config *Config, provider SnapshotProvider) (*raftBackend, error)
-	newDetachedRaftBackendWithIdFunc              func(newRaftId uint64, config *Config) (*raftBackend, error)
+	newDetachedRaftBackendWithIdAndPeersFunc      func(newRaftId uint64, config *Config, peers []*pb.RaftPeer) (*raftBackend, error)
 	newRaftTransportServiceClientFunc             func(conn *grpc.ClientConn) pb.RaftTransportServiceClient
 	newCopyCatServiceClientFunc                   func(conn *grpc.ClientConn) pb.CopyCatServiceClient
 	connectionCacheFunc                           func(m *sync.Map, address string) (*grpc.ClientConn, error)
@@ -56,16 +54,12 @@ func newMembershipCache(config *Config) (*membershipCache, error) {
 		raftIdToRaftBackend: &sync.Map{},
 		addressToConnection: &sync.Map{},
 		// Yet another level of indirection used for unit testing
-		newInteractiveRaftBackendFunc:                 _newInteractiveRaftBackend,
-		newInteractiveRaftBackendForExistingGroupFunc: _newInteractiveRaftBackendForExistingGroup,
-		newDetachedRaftBackendWithIdFunc:              _newDetachedRaftBackendWithId,
-		newRaftTransportServiceClientFunc:             _newRaftTransportServiceClient,
-		newCopyCatServiceClientFunc:                   _newCopyCatServiceClient,
+		newInteractiveRaftBackendForExistingGroupFunc: newInteractiveRaftBackendForExistingGroup,
+		newDetachedRaftBackendWithIdAndPeersFunc:      newDetachedRaftBackendWithIdAndPeers,
+		newRaftTransportServiceClientFunc:             pb.NewRaftTransportServiceClient,
+		newCopyCatServiceClientFunc:                   pb.NewCopyCatServiceClient,
 		connectionCacheFunc:                           _getConnectionForAddress,
-		chooserFunc: func(peerId uint64, tags map[string]string) bool {
-			return true
-		},
-		logger: config.logger.WithFields(log.Fields{}),
+		logger:                                        config.logger.WithFields(log.Fields{}),
 	}, nil
 }
 
@@ -96,31 +90,22 @@ func (mc *membershipCache) addToRaftGroup(ctx context.Context, existingRaftId ui
 	return nil
 }
 
-func (mc *membershipCache) peersForDataStructureId(dataStructureId ID) []pb.Peer {
+func (mc *membershipCache) peersForDataStructureId(dataStructureId ID) []*pb.RaftPeer {
 	return mc.membership.peersForDataStructureId(dataStructureId)
 }
 
-func (mc *membershipCache) onePeerForDataStructureId(dataStructureId ID) (*pb.Peer, error) {
+func (mc *membershipCache) onePeerForDataStructureId(dataStructureId ID) (*pb.RaftPeer, error) {
 	return mc.membership.onePeerForDataStructureId(dataStructureId)
 }
 
-func (mc *membershipCache) newDetachedRaftBackend(dataStructureId ID, raftId uint64, config *Config) (*raftBackend, error) {
-	backend, err := mc.newDetachedRaftBackendWithIdFunc(raftId, config)
+// called by copyCatTransport
+func (mc *membershipCache) newDetachedRaftBackend(dataStructureId ID, raftId uint64, config *Config, peers []*pb.RaftPeer) (*raftBackend, error) {
+	backend, err := mc.newDetachedRaftBackendWithIdAndPeersFunc(raftId, config, peers)
 	if err != nil {
 		return nil, err
 	}
 
-	err = mc.stashRaftBackend(dataStructureId, backend)
-	return backend, err
-}
-
-func (mc *membershipCache) newInteractiveRaftBackend(dataStructureId ID, config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
-	backend, err := mc.newInteractiveRaftBackendFunc(config, peers, provider)
-	if err != nil {
-		return nil, err
-	}
-
-	err = mc.stashRaftBackend(dataStructureId, backend)
+	err = mc.publishMetadataAboutRaftBackend(dataStructureId, backend)
 	return backend, err
 }
 
@@ -130,17 +115,18 @@ func (mc *membershipCache) newInteractiveRaftBackendForExistingGroup(dataStructu
 		return nil, err
 	}
 
-	err = mc.stashRaftBackend(dataStructureId, backend)
+	err = mc.publishMetadataAboutRaftBackend(dataStructureId, backend)
 	return backend, err
 }
 
-func (mc *membershipCache) stashRaftBackend(dataStructureId ID, backend *raftBackend) error {
+func (mc *membershipCache) publishMetadataAboutRaftBackend(dataStructureId ID, backend *raftBackend) error {
 	_, loaded := mc.raftIdToRaftBackend.LoadOrStore(backend.raftId, backend)
 	if loaded {
 		defer backend.stop()
 		return fmt.Errorf("Raft backend with id [%d %x] existed already", backend.raftId, backend.raftId)
 	}
 
+	mc.logger.Errorf("Publish metadata %s %d %x", dataStructureId.String(), backend.raftId, backend.raftId)
 	return mc.membership.addDataStructureToRaftIdMapping(dataStructureId, backend.raftId)
 }
 
@@ -154,78 +140,89 @@ func (mc *membershipCache) stopRaft(raftId uint64) error {
 	return mc.membership.removeDataStructureToRaftIdMapping(raftId)
 }
 
-func (mc *membershipCache) getRaftTransportClientForRaftId(raftId uint64) (pb.RaftTransportServiceClient, error) {
-	addr := mc.membership.getAddressForRaftId(raftId)
-	if addr == "" {
-		return nil, fmt.Errorf("Can't find raft with id: %d %x", raftId, raftId)
+func (mc *membershipCache) startNewRaftGroup(dataStructureId ID, numReplicas int) ([]*pb.RaftPeer, error) {
+	pickedPeerIds, err := mc.startRaftsRemotely(dataStructureId, numReplicas)
+	// all for 3 retries (4 in total)
+	for i := 0; i < 3 && err != nil; i++ {
+		mc.logger.Errorf("Can't start new raft group: %s", err.Error())
+		pickedPeerIds, err = mc.startRaftsRemotely(dataStructureId, numReplicas)
 	}
 
-	return mc.newRaftTransportServiceClient(mc.addressToConnection, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	return pickedPeerIds, nil
 }
 
-func (mc *membershipCache) chooseReplicaNode(dataStructureId ID, numReplicas int) ([]pb.Peer, error) {
-	notMePicker := func(peerId uint64, tags map[string]string) bool {
-		return peerId != mc.membership.myGossipNodeId() && mc.chooserFunc(peerId, tags)
+func (mc *membershipCache) startRaftsRemotely(dataStructureId ID, numReplicas int) ([]*pb.RaftPeer, error) {
+	pickedPeerIds := mc.membership.pickReplicaPeers(dataStructureId, numReplicas)
+	if pickedPeerIds == nil || len(pickedPeerIds) == 0 {
+		return nil, fmt.Errorf("Picking replica peers failed")
 	}
 
-	pickedPeerIds := mc.membership.pickFromMetadata(notMePicker, numReplicas, make([]uint64, 0))
-	peerCh := make(chan *pb.Peer)
+	raftPeers := make([]*pb.RaftPeer, len(pickedPeerIds))
+	for idx, peerId := range pickedPeerIds {
+		raftPeers[idx] = &pb.RaftPeer{
+			RaftId:      randomRaftId(),
+			PeerAddress: mc.membership.getAddressForPeer(peerId),
+		}
+	}
+
+	peerCh := make(chan *pb.RaftPeer)
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFunc()
-	for _, peerId := range pickedPeerIds {
-		addr := mc.membership.getAddressForPeer(peerId)
-		go mc.startRaftRemotely(ctx, peerCh, dataStructureId, addr)
+	for _, peer := range raftPeers {
+		go mc.startRaftRemotely(ctx, peerCh, dataStructureId, peer, raftPeers)
 	}
 
-	newRafts := make([]pb.Peer, numReplicas)
-	j := 0
-
-	for {
+	for j := 0; j < len(raftPeers); j++ {
 		select {
 		case peer, ok := <-peerCh:
 			if !ok {
-				return newRafts[:j], nil
+				return nil, errCantFindEnoughReplicas
 			}
 
 			if peer == nil {
-				// I got an empty response from one of the peers I contacted,
-				// let me try another one...
-				newPickedPeerIds := mc.membership.pickFromMetadata(notMePicker, 1, pickedPeerIds)
-				for _, peerId := range newPickedPeerIds {
-					addr := mc.membership.getAddressForPeer(peerId)
-					go mc.startRaftRemotely(ctx, peerCh, dataStructureId, addr)
-					//avoid making the same mistake twice
-					pickedPeerIds = append(pickedPeerIds, peerId)
-				}
-			} else {
-
-				// if I got a valid response, put it in the array
-				newRafts[j] = *peer
-				j++
-				if j >= numReplicas {
-					return newRafts, nil
-				}
-
+				// starting one of the rafts failed!
+				// in that case we pack our bags and go home
+				mc.stopAllRaftsAsync(pickedPeerIds)
+				return nil, errCantFindEnoughReplicas
 			}
+
+			mc.logger.Infof("Started raft [%d %x] for data structure [%s]", peer.RaftId, peer.RaftId, dataStructureId.String())
 		case <-ctx.Done():
-			return newRafts[:j], errCantFindEnoughReplicas
+			// if the time's up, we return an error and stop all rafts
+			mc.stopAllRaftsAsync(pickedPeerIds)
+			return nil, errCantFindEnoughReplicas
 		}
+	}
+
+	return raftPeers, nil
+}
+
+func (mc *membershipCache) stopAllRaftsAsync(peerIds []uint64) {
+	for _, peerId := range peerIds {
+		addr := mc.membership.getAddressForPeer(peerId)
+		defer mc.stopRaftRemotely(pb.RaftPeer{
+			RaftId:      peerId,
+			PeerAddress: addr,
+		})
 	}
 }
 
-func (mc *membershipCache) addRaftToGroupRemotely(newRaftId uint64, peer *pb.Peer) error {
-	client, err := mc.newCopyCatServiceClient(mc.addressToConnection, peer.RaftAddress)
+func (mc *membershipCache) addRaftToGroupRemotely(newRaftId uint64, peer *pb.RaftPeer) error {
+	client, err := mc.newCopyCatServiceClient(mc.addressToConnection, peer.PeerAddress)
 	if err != nil {
-		err = fmt.Errorf("Can't connect to %d %x %s: %s", peer.Id, peer.Id, peer.RaftAddress, err.Error())
+		err = fmt.Errorf("Can't connect to %d %x %s: %s", peer.RaftId, peer.RaftId, peer.PeerAddress, err.Error())
 		mc.logger.Errorf("%s", err.Error())
 		return err
 	}
 
-	req := &pb.AddRaftRequest{
+	_, err = client.AddRaftToRaftGroup(context.TODO(), &pb.AddRaftRequest{
 		NewRaftId:      newRaftId,
-		ExistingRaftId: peer.Id,
-	}
-	_, err = client.AddRaftToRaftGroup(context.TODO(), req)
+		ExistingRaftId: peer.RaftId,
+	})
 	if err != nil {
 		err = fmt.Errorf("Can't add raft to raft group: %s", err.Error())
 		mc.logger.Errorf("%s", err.Error())
@@ -234,46 +231,50 @@ func (mc *membershipCache) addRaftToGroupRemotely(newRaftId uint64, peer *pb.Pee
 	return nil
 }
 
-func (mc *membershipCache) startRaftRemotely(ctx context.Context, peerCh chan *pb.Peer, dataStructureId ID, address string) {
-	if mc.myAddress == address || address == "" {
+func (mc *membershipCache) startRaftRemotely(ctx context.Context, peerCh chan *pb.RaftPeer, dataStructureId ID, raftPeer *pb.RaftPeer, allPeers []*pb.RaftPeer) {
+	if raftPeer.PeerAddress == "" {
 		// signal to the listener that we need to retry another peer
 		peerCh <- nil
 		return
 	}
 
-	client, err := mc.newCopyCatServiceClient(mc.addressToConnection, address)
+	client, err := mc.newCopyCatServiceClient(mc.addressToConnection, raftPeer.PeerAddress)
 	if err != nil {
-		mc.logger.Errorf("Can't connect to %s: %s", address, err.Error())
+		mc.logger.Errorf("Can't connect to %s: %s", raftPeer.PeerAddress, err.Error())
 		peerCh <- nil
 		return
 	}
 
-	resp, err := client.StartRaft(ctx, &pb.StartRaftRequest{DataStructureId: dataStructureId.toProto()})
+	resp, err := client.StartRaft(ctx, &pb.StartRaftRequest{
+		DataStructureId: dataStructureId.toProto(),
+		RaftIdToUse:     raftPeer.RaftId,
+		AllRaftPeers:    allPeers,
+	})
 	if err != nil {
-		mc.logger.Errorf("Can't start a raft at %s: %s", address, err.Error())
+		mc.logger.Errorf("Can't start a raft at %s: %s", raftPeer.PeerAddress, err.Error())
 		// signal to the listener that we need to retry another peer
 		peerCh <- nil
 		return
 	}
 
-	mc.logger.Infof("Started raft remotely on %s: %s", address, resp.String())
-	peerCh <- &pb.Peer{
-		Id:          resp.RaftId,
-		RaftAddress: resp.RaftAddress,
+	mc.logger.Infof("Started raft remotely on %s: %s", raftPeer.PeerAddress, resp.String())
+	peerCh <- &pb.RaftPeer{
+		RaftId:      resp.RaftId,
+		PeerAddress: resp.RaftAddress,
 	}
 }
 
-func (mc *membershipCache) stopRaftRemotely(peer pb.Peer) error {
-	if peer.RaftAddress == "" {
-		return fmt.Errorf("Invalid address: %s", peer.RaftAddress)
+func (mc *membershipCache) stopRaftRemotely(peer pb.RaftPeer) error {
+	if peer.PeerAddress == "" {
+		return fmt.Errorf("Invalid address: %s", peer.PeerAddress)
 	}
 
-	client, err := mc.newCopyCatServiceClient(mc.addressToConnection, peer.RaftAddress)
+	client, err := mc.newCopyCatServiceClient(mc.addressToConnection, peer.PeerAddress)
 	if err != nil {
 		return err
 	}
 
-	_, err = client.StopRaft(context.TODO(), &pb.StopRaftRequest{RaftId: peer.Id})
+	_, err = client.StopRaft(context.TODO(), &pb.StopRaftRequest{RaftId: peer.RaftId})
 	return err
 }
 
@@ -289,7 +290,9 @@ func (mc *membershipCache) newRaftTransportServiceClient(m *sync.Map, address st
 func (mc *membershipCache) getRaftTransportServiceClientForRaftId(raftId uint64) (pb.RaftTransportServiceClient, error) {
 	addr := mc.membership.getAddressForRaftId(raftId)
 	if addr == "" {
-		err := fmt.Errorf("Can't find raft with id [%d %x] because addr was empty", raftId, raftId)
+		// TODO: maybe gossip around to ask for a particular raft?
+		//       or even for the entire data structure?
+		err := fmt.Errorf("Can't find raft with id [%d %x] because can't find network address", raftId, raftId)
 		mc.logger.Errorf("%s", err.Error())
 		return nil, err
 	}
@@ -324,26 +327,6 @@ func (mc *membershipCache) stop() error {
 	})
 
 	return nil
-}
-
-func _newInteractiveRaftBackend(config *Config, peers []pb.Peer, provider SnapshotProvider) (*raftBackend, error) {
-	return newInteractiveRaftBackend(config, peers, provider)
-}
-
-func _newInteractiveRaftBackendForExistingGroup(config *Config, provider SnapshotProvider) (*raftBackend, error) {
-	return newInteractiveRaftBackendForExistingGroup(config, provider)
-}
-
-func _newDetachedRaftBackendWithId(newRaftId uint64, config *Config) (*raftBackend, error) {
-	return newDetachedRaftBackendWithId(newRaftId, config)
-}
-
-func _newRaftTransportServiceClient(conn *grpc.ClientConn) pb.RaftTransportServiceClient {
-	return pb.NewRaftTransportServiceClient(conn)
-}
-
-func _newCopyCatServiceClient(conn *grpc.ClientConn) pb.CopyCatServiceClient {
-	return pb.NewCopyCatServiceClient(conn)
 }
 
 func _getConnectionForAddress(m *sync.Map, address string) (*grpc.ClientConn, error) {

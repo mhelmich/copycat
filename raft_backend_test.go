@@ -21,7 +21,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"os"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -46,11 +45,6 @@ func TestRaftBackendBasic(t *testing.T) {
 	config1.logger = log.WithFields(log.Fields{
 		"raft1": "raft1",
 	})
-	detachedBackend1, err := newDetachedRaftBackendWithId(randomRaftId(), config1)
-	assert.Nil(t, err)
-	fakeTransport.add(detachedBackend1)
-	assert.NotNil(t, detachedBackend1)
-
 	config2 := DefaultConfig()
 	config2.CopyCatDataDir = "./test-TestRaftBackendBasic-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
@@ -60,7 +54,22 @@ func TestRaftBackendBasic(t *testing.T) {
 	config2.logger = log.WithFields(log.Fields{
 		"raft2": "raft2",
 	})
-	detachedBackend2, err := newDetachedRaftBackendWithId(randomRaftId(), config2)
+	allPeers := make([]*pb.RaftPeer, 2)
+	allPeers[0] = &pb.RaftPeer{
+		RaftId:      randomRaftId(),
+		PeerAddress: config1.address(),
+	}
+	allPeers[1] = &pb.RaftPeer{
+		RaftId:      randomRaftId(),
+		PeerAddress: config2.address(),
+	}
+
+	detachedBackend1, err := newDetachedRaftBackendWithIdAndPeers(allPeers[0].RaftId, config1, allPeers)
+	assert.Nil(t, err)
+	fakeTransport.add(detachedBackend1)
+	assert.NotNil(t, detachedBackend1)
+
+	detachedBackend2, err := newDetachedRaftBackendWithIdAndPeers(allPeers[1].RaftId, config2, allPeers)
 	assert.Nil(t, err)
 	fakeTransport.add(detachedBackend2)
 	assert.NotNil(t, detachedBackend2)
@@ -74,20 +83,12 @@ func TestRaftBackendBasic(t *testing.T) {
 	config3.logger = log.WithFields(log.Fields{
 		"raft3": "raft3",
 	})
-	peers3 := make([]pb.Peer, 2)
-	peers3[0] = pb.Peer{
-		Id:          detachedBackend1.raftId,
-		RaftAddress: config1.Hostname + ":" + strconv.Itoa(config1.CopyCatPort),
-	}
-	peers3[1] = pb.Peer{
-		Id:          detachedBackend2.raftId,
-		RaftAddress: config2.Hostname + ":" + strconv.Itoa(config2.CopyCatPort),
-	}
-	interactiveBackend, err := newInteractiveRaftBackend(config3, peers3, func() ([]byte, error) { return make([]byte, 0), nil })
+	interactiveBackend, err := newInteractiveRaftBackendForExistingGroup(config3, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
 	fakeTransport.add(interactiveBackend)
 	assert.NotNil(t, interactiveBackend)
 	assert.NotNil(t, interactiveBackend.raftNode)
+	detachedBackend1.addRaftToMyGroup(context.TODO(), interactiveBackend.raftId)
 
 	hello := []byte("hello")
 	world := []byte("world")
@@ -122,11 +123,6 @@ func TestRaftBackendAddNewRaftToExistingGroup(t *testing.T) {
 	config1.logger = log.WithFields(log.Fields{
 		"raft1": "raft1",
 	})
-	detachedBackend1, err := newDetachedRaftBackendWithId(randomRaftId(), config1)
-	assert.Nil(t, err)
-	fakeTransport.add(detachedBackend1)
-	assert.NotNil(t, detachedBackend1)
-
 	config2 := DefaultConfig()
 	config2.CopyCatDataDir = "./test-TestRaftBackendAddNewRaftToExistingGroup-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
@@ -136,7 +132,22 @@ func TestRaftBackendAddNewRaftToExistingGroup(t *testing.T) {
 	config2.logger = log.WithFields(log.Fields{
 		"raft2": "raft2",
 	})
-	detachedBackend2, err := newDetachedRaftBackendWithId(randomRaftId(), config2)
+	allPeers := make([]*pb.RaftPeer, 2)
+	allPeers[0] = &pb.RaftPeer{
+		RaftId:      randomRaftId(),
+		PeerAddress: config1.address(),
+	}
+	allPeers[1] = &pb.RaftPeer{
+		RaftId:      randomRaftId(),
+		PeerAddress: config2.address(),
+	}
+
+	detachedBackend1, err := newDetachedRaftBackendWithIdAndPeers(allPeers[0].RaftId, config1, allPeers)
+	assert.Nil(t, err)
+	fakeTransport.add(detachedBackend1)
+	assert.NotNil(t, detachedBackend1)
+
+	detachedBackend2, err := newDetachedRaftBackendWithIdAndPeers(allPeers[1].RaftId, config2, allPeers)
 	assert.Nil(t, err)
 	fakeTransport.add(detachedBackend2)
 	assert.NotNil(t, detachedBackend2)
@@ -150,20 +161,12 @@ func TestRaftBackendAddNewRaftToExistingGroup(t *testing.T) {
 	config3.logger = log.WithFields(log.Fields{
 		"raft3": "raft3",
 	})
-	peers3 := make([]pb.Peer, 2)
-	peers3[0] = pb.Peer{
-		Id:          detachedBackend1.raftId,
-		RaftAddress: config1.Hostname + ":" + strconv.Itoa(config1.CopyCatPort),
-	}
-	peers3[1] = pb.Peer{
-		Id:          detachedBackend2.raftId,
-		RaftAddress: config2.Hostname + ":" + strconv.Itoa(config2.CopyCatPort),
-	}
-	interactiveBackend1, err := newInteractiveRaftBackend(config3, peers3, func() ([]byte, error) { return make([]byte, 0), nil })
+	interactiveBackend1, err := newInteractiveRaftBackendForExistingGroup(config3, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
 	fakeTransport.add(interactiveBackend1)
 	assert.NotNil(t, interactiveBackend1)
 	assert.NotNil(t, interactiveBackend1.raftNode)
+	detachedBackend2.addRaftToMyGroup(context.TODO(), interactiveBackend1.raftId)
 
 	hello := []byte("hello")
 	world := []byte("world")
@@ -189,7 +192,6 @@ func TestRaftBackendAddNewRaftToExistingGroup(t *testing.T) {
 	fakeTransport.add(interactiveBackend2)
 	assert.NotNil(t, interactiveBackend2)
 	assert.NotNil(t, interactiveBackend2.raftNode)
-
 	interactiveBackend1.proposeConfChangeChan <- raftpb.ConfChange{
 		Type:   raftpb.ConfChangeAddNode,
 		NodeID: interactiveBackend2.raftId,
@@ -331,11 +333,6 @@ func TestRaftBackendGracefulShutdownFailover(t *testing.T) {
 	config1.logger = log.WithFields(log.Fields{
 		"raft1": "raft1",
 	})
-	detachedBackend1, err := newDetachedRaftBackendWithId(randomRaftId(), config1)
-	assert.Nil(t, err)
-	fakeTransport.add(detachedBackend1)
-	assert.NotNil(t, detachedBackend1)
-
 	config2 := DefaultConfig()
 	config2.CopyCatDataDir = "./test-TestRaftBackendGracefulShutdownFailover-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
@@ -345,13 +342,8 @@ func TestRaftBackendGracefulShutdownFailover(t *testing.T) {
 	config2.logger = log.WithFields(log.Fields{
 		"raft2": "raft2",
 	})
-	detachedBackend2, err := newDetachedRaftBackendWithId(randomRaftId(), config2)
-	assert.Nil(t, err)
-	fakeTransport.add(detachedBackend2)
-	assert.NotNil(t, detachedBackend2)
-
 	config3 := DefaultConfig()
-	config3.CopyCatDataDir = "./test-TestRaftBackendGracefulShutdownFailover-" + uint64ToString(randomRaftId()) + "/"
+	config3.CopyCatDataDir = "./test-TestRaftBackendSplitBrainFailover-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config3.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	config3.CopyCatPort = config2.CopyCatPort + 1111
@@ -359,20 +351,50 @@ func TestRaftBackendGracefulShutdownFailover(t *testing.T) {
 	config3.logger = log.WithFields(log.Fields{
 		"raft3": "raft3",
 	})
-	peers3 := make([]pb.Peer, 2)
-	peers3[0] = pb.Peer{
-		Id:          detachedBackend1.raftId,
-		RaftAddress: config1.Hostname + ":" + strconv.Itoa(config1.CopyCatPort),
+	allPeers := make([]*pb.RaftPeer, 3)
+	allPeers[0] = &pb.RaftPeer{
+		RaftId:      randomRaftId(),
+		PeerAddress: config1.address(),
 	}
-	peers3[1] = pb.Peer{
-		Id:          detachedBackend2.raftId,
-		RaftAddress: config2.Hostname + ":" + strconv.Itoa(config2.CopyCatPort),
+	allPeers[1] = &pb.RaftPeer{
+		RaftId:      randomRaftId(),
+		PeerAddress: config2.address(),
 	}
-	interactiveBackend, err := newInteractiveRaftBackend(config3, peers3, func() ([]byte, error) { return make([]byte, 0), nil })
+	allPeers[2] = &pb.RaftPeer{
+		RaftId:      randomRaftId(),
+		PeerAddress: config3.address(),
+	}
+
+	detachedBackend1, err := newDetachedRaftBackendWithIdAndPeers(allPeers[0].RaftId, config1, allPeers)
+	assert.Nil(t, err)
+	fakeTransport.add(detachedBackend1)
+	assert.NotNil(t, detachedBackend1)
+
+	detachedBackend2, err := newDetachedRaftBackendWithIdAndPeers(allPeers[1].RaftId, config2, allPeers)
+	assert.Nil(t, err)
+	fakeTransport.add(detachedBackend2)
+	assert.NotNil(t, detachedBackend2)
+
+	detachedBackend3, err := newDetachedRaftBackendWithIdAndPeers(allPeers[2].RaftId, config3, allPeers)
+	assert.Nil(t, err)
+	fakeTransport.add(detachedBackend3)
+	assert.NotNil(t, detachedBackend3)
+
+	config4 := DefaultConfig()
+	config4.CopyCatDataDir = "./test-TestRaftBackendGracefulShutdownFailover-" + uint64ToString(randomRaftId()) + "/"
+	err = os.MkdirAll(config4.CopyCatDataDir, os.ModePerm)
+	assert.Nil(t, err)
+	config4.CopyCatPort = config3.CopyCatPort + 1111
+	config4.raftTransport = fakeTransport
+	config4.logger = log.WithFields(log.Fields{
+		"raft4": "raft4",
+	})
+	interactiveBackend, err := newInteractiveRaftBackendForExistingGroup(config4, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
 	fakeTransport.add(interactiveBackend)
 	assert.NotNil(t, interactiveBackend)
 	assert.NotNil(t, interactiveBackend.raftNode)
+	detachedBackend1.addRaftToMyGroup(context.TODO(), interactiveBackend.raftId)
 
 	hello := []byte("hello")
 	world := []byte("world")
@@ -382,11 +404,13 @@ func TestRaftBackendGracefulShutdownFailover(t *testing.T) {
 	interactiveBackend.proposeChan <- world
 	bites = <-interactiveBackend.commitChan
 	assert.Equal(t, world, bites)
+	assert.Equal(t, 3, len(detachedBackend3.confState.Nodes))
+	assert.Equal(t, 1, len(detachedBackend3.confState.Learners))
 
-	master := findLeaderBackend(detachedBackend1, detachedBackend2, interactiveBackend)
+	master := findLeaderBackend(detachedBackend1, detachedBackend2, detachedBackend3, interactiveBackend)
 	assert.NotNil(t, master)
-	followers := findAllFollowers(detachedBackend1, detachedBackend2, interactiveBackend)
-	assert.Equal(t, 2, len(followers))
+	followers := findAllFollowers(detachedBackend1, detachedBackend2, detachedBackend3, interactiveBackend)
+	assert.Equal(t, 3, len(followers))
 	master.stop()
 	log.Infof("Stopped leader: %d %x", master.raftId, master.raftId)
 
@@ -394,10 +418,10 @@ func TestRaftBackendGracefulShutdownFailover(t *testing.T) {
 	// elections happen after a second (10 ticks à 100ms +/- random) or so
 	time.Sleep(2 * time.Second)
 
-	master = findLeaderBackend(detachedBackend1, detachedBackend2, interactiveBackend)
+	master = findLeaderBackend(detachedBackend1, detachedBackend2, detachedBackend3, interactiveBackend)
 	assert.NotNil(t, master)
-	followers = findAllFollowers(detachedBackend1, detachedBackend2, interactiveBackend)
-	assert.Equal(t, 2, len(followers))
+	followers = findAllFollowers(detachedBackend1, detachedBackend2, detachedBackend3, interactiveBackend)
+	assert.Equal(t, 3, len(followers))
 
 	for _, b := range followers {
 		b.stop()
@@ -408,6 +432,8 @@ func TestRaftBackendGracefulShutdownFailover(t *testing.T) {
 	err = os.RemoveAll(config2.CopyCatDataDir)
 	assert.Nil(t, err)
 	err = os.RemoveAll(config3.CopyCatDataDir)
+	assert.Nil(t, err)
+	err = os.RemoveAll(config4.CopyCatDataDir)
 	assert.Nil(t, err)
 }
 
@@ -423,11 +449,6 @@ func TestRaftBackendSplitBrainFailover(t *testing.T) {
 	config1.logger = log.WithFields(log.Fields{
 		"raft1": "raft1",
 	})
-	detachedBackend1, err := newDetachedRaftBackendWithId(randomRaftId(), config1)
-	assert.Nil(t, err)
-	fakeTransport.add(detachedBackend1)
-	assert.NotNil(t, detachedBackend1)
-
 	config2 := DefaultConfig()
 	config2.CopyCatDataDir = "./test-TestRaftBackendSplitBrainFailover-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
@@ -437,11 +458,6 @@ func TestRaftBackendSplitBrainFailover(t *testing.T) {
 	config2.logger = log.WithFields(log.Fields{
 		"raft2": "raft2",
 	})
-	detachedBackend2, err := newDetachedRaftBackendWithId(randomRaftId(), config2)
-	assert.Nil(t, err)
-	fakeTransport.add(detachedBackend2)
-	assert.NotNil(t, detachedBackend2)
-
 	config3 := DefaultConfig()
 	config3.CopyCatDataDir = "./test-TestRaftBackendSplitBrainFailover-" + uint64ToString(randomRaftId()) + "/"
 	err = os.MkdirAll(config3.CopyCatDataDir, os.ModePerm)
@@ -451,20 +467,54 @@ func TestRaftBackendSplitBrainFailover(t *testing.T) {
 	config3.logger = log.WithFields(log.Fields{
 		"raft3": "raft3",
 	})
-	peers3 := make([]pb.Peer, 2)
-	peers3[0] = pb.Peer{
-		Id:          detachedBackend1.raftId,
-		RaftAddress: config1.Hostname + ":" + strconv.Itoa(config1.CopyCatPort),
+	allPeers := make([]*pb.RaftPeer, 3)
+	allPeers[0] = &pb.RaftPeer{
+		RaftId:      randomRaftId(),
+		PeerAddress: config1.address(),
 	}
-	peers3[1] = pb.Peer{
-		Id:          detachedBackend2.raftId,
-		RaftAddress: config2.Hostname + ":" + strconv.Itoa(config2.CopyCatPort),
+	allPeers[1] = &pb.RaftPeer{
+		RaftId:      randomRaftId(),
+		PeerAddress: config2.address(),
 	}
-	interactiveBackend, err := newInteractiveRaftBackend(config3, peers3, func() ([]byte, error) { return make([]byte, 0), nil })
+	allPeers[2] = &pb.RaftPeer{
+		RaftId:      randomRaftId(),
+		PeerAddress: config3.address(),
+	}
+
+	detachedBackend1, err := newDetachedRaftBackendWithIdAndPeers(allPeers[0].RaftId, config1, allPeers)
+	assert.Nil(t, err)
+	fakeTransport.add(detachedBackend1)
+	assert.NotNil(t, detachedBackend1)
+
+	detachedBackend2, err := newDetachedRaftBackendWithIdAndPeers(allPeers[1].RaftId, config2, allPeers)
+	assert.Nil(t, err)
+	fakeTransport.add(detachedBackend2)
+	assert.NotNil(t, detachedBackend2)
+
+	detachedBackend3, err := newDetachedRaftBackendWithIdAndPeers(allPeers[2].RaftId, config3, allPeers)
+	assert.Nil(t, err)
+	fakeTransport.add(detachedBackend3)
+	assert.NotNil(t, detachedBackend3)
+
+	time.Sleep(1 * time.Second)
+	assert.Equal(t, 3, len(detachedBackend3.confState.Nodes))
+	assert.Equal(t, 0, len(detachedBackend3.confState.Learners))
+
+	config4 := DefaultConfig()
+	config4.CopyCatDataDir = "./test-TestRaftBackendSplitBrainFailover-" + uint64ToString(randomRaftId()) + "/"
+	err = os.MkdirAll(config4.CopyCatDataDir, os.ModePerm)
+	assert.Nil(t, err)
+	config4.CopyCatPort = config3.CopyCatPort + 1111
+	config4.raftTransport = fakeTransport
+	config4.logger = log.WithFields(log.Fields{
+		"raft4": "raft4",
+	})
+	interactiveBackend, err := newInteractiveRaftBackendForExistingGroup(config4, func() ([]byte, error) { return make([]byte, 0), nil })
 	assert.Nil(t, err)
 	fakeTransport.add(interactiveBackend)
 	assert.NotNil(t, interactiveBackend)
 	assert.NotNil(t, interactiveBackend.raftNode)
+	detachedBackend1.addRaftToMyGroup(context.TODO(), interactiveBackend.raftId)
 
 	hello := []byte("hello")
 	world := []byte("world")
@@ -475,24 +525,51 @@ func TestRaftBackendSplitBrainFailover(t *testing.T) {
 	bites = <-interactiveBackend.commitChan
 	assert.Equal(t, world, bites)
 
-	master := findLeaderBackend(detachedBackend1, detachedBackend2, interactiveBackend)
-	assert.NotNil(t, master)
-	followers := findAllFollowers(detachedBackend1, detachedBackend2, interactiveBackend)
-	assert.Equal(t, 2, len(followers))
-	fakeTransport.isolateRaft(master.raftId)
-	log.Infof("Isolated leader: %d %x", master.raftId, master.raftId)
-	master.stop()
-	log.Infof("Stopped leader: %d %x", master.raftId, master.raftId)
+	assert.Equal(t, 3, len(detachedBackend3.confState.Nodes))
+	assert.Equal(t, 1, len(detachedBackend3.confState.Learners))
+	log.Warnf("conf state: %s", detachedBackend1.confState.String())
 
 	// HACK
 	// elections happen after a second (10 ticks à 100ms +/- random) or so
-	time.Sleep(2 * time.Second)
-	log.Info("Stopped sleeping")
+	var master1 *raftBackend
+	for i := 0; i < 20 && master1 == nil; i++ {
+		master1 = findLeaderBackend(detachedBackend1, detachedBackend2, detachedBackend3, interactiveBackend)
+		time.Sleep(100 * time.Millisecond)
+	}
+	log.Infof("master %d %x", master1.raftId, master1.raftId)
+	assert.NotNil(t, master1)
+	followers := findAllFollowers(detachedBackend1, detachedBackend2, detachedBackend3, interactiveBackend)
+	for _, rb := range followers {
+		log.Infof("follower %d %x", rb.raftId, rb.raftId)
+	}
+	assert.Equal(t, 3, len(followers))
+	fakeTransport.isolateRaft(master1.raftId)
+	log.Infof("Isolated leader: %d %x", master1.raftId, master1.raftId)
+	master1.stop()
+	log.Infof("Stopped leader: %d %x", master1.raftId, master1.raftId)
 
-	master = findLeaderBackend(detachedBackend1, detachedBackend2, interactiveBackend)
-	assert.NotNil(t, master)
-	followers = findAllFollowers(detachedBackend1, detachedBackend2, interactiveBackend)
-	assert.Equal(t, 1, len(followers))
+	// HACK
+	// elections happen after a second (10 ticks à 100ms +/- random) or so
+	var master2 *raftBackend
+	time.Sleep(2000 * time.Millisecond)
+	for i := 0; i < 20; i++ {
+		if master2 == nil {
+			master2 = findLeaderBackend(detachedBackend1, detachedBackend2, detachedBackend3, interactiveBackend)
+			time.Sleep(100 * time.Millisecond)
+		} else if master1.raftId == master2.raftId {
+			master2 = findLeaderBackend(detachedBackend1, detachedBackend2, detachedBackend3, interactiveBackend)
+			time.Sleep(100 * time.Millisecond)
+		} else {
+			break
+		}
+	}
+	log.Infof("master %d %x", master2.raftId, master2.raftId)
+	assert.NotNil(t, master2)
+	followers = findAllFollowers(detachedBackend1, detachedBackend2, detachedBackend3, interactiveBackend)
+	for _, rb := range followers {
+		log.Infof("follower %d %x", rb.raftId, rb.raftId)
+	}
+	assert.Equal(t, 3, len(followers))
 
 	for _, b := range followers {
 		b.stop()
@@ -503,6 +580,8 @@ func TestRaftBackendSplitBrainFailover(t *testing.T) {
 	err = os.RemoveAll(config2.CopyCatDataDir)
 	assert.Nil(t, err)
 	err = os.RemoveAll(config3.CopyCatDataDir)
+	assert.Nil(t, err)
+	err = os.RemoveAll(config4.CopyCatDataDir)
 	assert.Nil(t, err)
 }
 
@@ -527,6 +606,7 @@ func TestRaftBackendStartWithSnapshot(t *testing.T) {
 	var readOnlyReadyCh <-chan raft.Ready = readyCh
 	mockRaftNode.On("Ready").Return(readOnlyReadyCh)
 	mockRaftNode.On("Tick").Return()
+	mockRaftNode.On("Stop").Return()
 
 	commitCh := make(chan []byte)
 	stopCh := make(chan struct{})
@@ -612,6 +692,10 @@ func (ft *fakeTransport) sendMessages(msgs []raftpb.Message) *messageSendingResu
 }
 
 func (ft *fakeTransport) maybeSend(rb *raftBackend, msg raftpb.Message) error {
+	if msg.To == msg.From {
+		return rb.step(context.TODO(), msg)
+	}
+
 	_, ok := ft.isolations.Load(msg.To)
 	if ok {
 		return fmt.Errorf("Can't send to node %d %x", msg.To, msg.To)

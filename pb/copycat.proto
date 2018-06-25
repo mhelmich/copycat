@@ -60,8 +60,7 @@ message RaftIdQueryRequest {
 }
 
 message RaftIdQueryResponse {
-  uint64 RaftId = 1;
-  string Address = 2;
+  RaftPeer peer = 1;
 }
 
 message DataStructureIdRequest {
@@ -69,18 +68,16 @@ message DataStructureIdRequest {
 }
 
 message DataStructureIdResponse {
-  Id128 DataStructureId = 1;
-  uint64 RaftId = 2;
-  string Address = 3;
+  repeated RaftPeer peers = 1;
 }
 
 //////////////////////////////////////////
 ////////////////////////////////
 // SECTION FOR CLUSTER METADATA
 
-message Peer {
-  uint64 Id = 1;
-  string RaftAddress = 2;
+message RaftPeer {
+  uint64 RaftId = 1;
+  string PeerAddress = 2;
 }
 
 message HostedItems {
@@ -115,6 +112,8 @@ service CopyCatService {
 
 message StartRaftRequest {
   Id128 DataStructureId = 1;
+  uint64 RaftIdToUse = 2;
+  repeated RaftPeer AllRaftPeers = 3;
 }
 
 message StartRaftResponse {
