@@ -156,7 +156,5 @@ type memberList interface {
 	stop() error
 }
 
-type locationChooser func(map[string]string) []string
-
 // internal errors
 var errCantFindEnoughReplicas = errors.New("Couldn't find enough remote peers for raft creation and timed out")
