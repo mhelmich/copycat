@@ -17,6 +17,8 @@
 package copycat
 
 import (
+	"bytes"
+	"fmt"
 	"strconv"
 
 	"github.com/mhelmich/copycat/pb"
@@ -72,6 +74,40 @@ func newCopyCat(config *Config) (*copyCatImpl, error) {
 
 func (c *copyCatImpl) NewDataStructureID() (*ID, error) {
 	return newId()
+}
+
+func (c *copyCatImpl) AllocateNewDataStructure(opts ...AllocationOption) (*ID, error) {
+	var peer *pb.RaftPeer
+	var err error
+	var id *ID
+
+	for peer == nil || err != nil {
+		id, err = newId()
+		if err != nil {
+			continue
+		}
+
+		peer, err = c.membership.onePeerForDataStructureId(id)
+	}
+
+	allocOpts := &allocationOptions{}
+	for _, opt := range opts {
+		opt(allocOpts)
+	}
+
+	remoteRaftPeers, err := c.membership.startNewRaftGroup(id, allocOpts.dataCenterReplicas)
+	if err != nil {
+		c.logger.Errorf("Can't connect to data structure [%s]: %s", id, err.Error())
+		return nil, err
+	}
+
+	var buffer bytes.Buffer
+	for _, p := range remoteRaftPeers {
+		buffer.WriteString(fmt.Sprintf(" %d %x ", p.RaftId, p.RaftId))
+	}
+	c.logger.Infof("Allocated new raft group [%s]", buffer.String())
+
+	return id, nil
 }
 
 func (c *copyCatImpl) SubscribeToDataStructureWithStringID(id string, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error) {

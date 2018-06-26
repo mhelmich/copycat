@@ -85,11 +85,27 @@ func NewCopyCat(config *Config) (CopyCat, error) {
 	return newCopyCat(config)
 }
 
+// this sstruct captures the options
+type allocationOptions struct {
+	dataCenterReplicas int
+}
+
+type AllocationOption func(*allocationOptions)
+
+func WithDataCenterReplicas(numDataCenterReplicas int) AllocationOption {
+	return func(allocOpts *allocationOptions) {
+		allocOpts.dataCenterReplicas = numDataCenterReplicas
+	}
+}
+
 // CopyCat is the struct consumers need to create in order to create distributed data structures.
 type CopyCat interface {
 	// Acquires a new CopyCat data structure id. The consumer is in the responsibility to keep this id save.
 	// If the id is lost, the data structure can't be accessed anymore.
 	NewDataStructureID() (*ID, error)
+	// AllocateNewDataStructure creates a new data structure and returns its unique ID.
+	// The consumer is in the responsibility to keep this id save. If the id is lost, the data structure can't be accessed anymore.
+	AllocateNewDataStructure(opts ...AllocationOption) (*ID, error)
 	// Convenience wrapper to connect to a data structure with the string representation of an id.
 	SubscribeToDataStructureWithStringID(id string, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error)
 	// SubscribeToDataStructure allows the consumer to connect to a data structure identified by id.
@@ -156,5 +172,9 @@ type memberList interface {
 	stop() error
 }
 
-// internal errors
-var errCantFindEnoughReplicas = errors.New("Couldn't find enough remote peers for raft creation and timed out")
+////////////////////////
+///////// errors
+
+// ErrCantFindEnoughReplicas is returned of the number of replicas
+// for an allocation request can't be fulfilled
+var ErrCantFindEnoughReplicas = errors.New("Couldn't find enough remote peers for raft creation and timed out")

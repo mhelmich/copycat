@@ -180,21 +180,21 @@ func (mc *membershipCache) startRaftsRemotely(dataStructureId *ID, numReplicas i
 		select {
 		case peer, ok := <-peerCh:
 			if !ok {
-				return nil, errCantFindEnoughReplicas
+				return nil, ErrCantFindEnoughReplicas
 			}
 
 			if peer == nil {
 				// starting one of the rafts failed!
 				// in that case we pack our bags and go home
 				mc.stopAllRaftsAsync(pickedPeerIds)
-				return nil, errCantFindEnoughReplicas
+				return nil, ErrCantFindEnoughReplicas
 			}
 
 			mc.logger.Infof("Started raft [%d %x] for data structure [%s]", peer.RaftId, peer.RaftId, dataStructureId.String())
 		case <-ctx.Done():
 			// if the time's up, we return an error and stop all rafts
 			mc.stopAllRaftsAsync(pickedPeerIds)
-			return nil, errCantFindEnoughReplicas
+			return nil, ErrCantFindEnoughReplicas
 		}
 	}
 
