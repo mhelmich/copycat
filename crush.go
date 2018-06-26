@@ -63,7 +63,7 @@ type crush struct {
 // r is a counter to modify the hash during each iteration
 // dataStructureId is the unique id of the data structure we're trying to place
 // hierarchy is either a string (data center / rack) or a uint64 (peer id)
-func (c *crush) hash(r uint8, dataStructureId ID, hierarchyId []byte) []byte {
+func (c *crush) hash(r uint8, dataStructureId *ID, hierarchyId []byte) []byte {
 	h := hmac.New(sha512.New512_256, []byte("tag"))
 	buf := make([]byte, 1)
 	buf[0] = byte(r)
@@ -73,7 +73,7 @@ func (c *crush) hash(r uint8, dataStructureId ID, hierarchyId []byte) []byte {
 	return h.Sum(nil)
 }
 
-func (c *crush) hashRendezVous(r uint8, level *sync.Map, dataStructureId ID) interface{} {
+func (c *crush) hashRendezVous(r uint8, level *sync.Map, dataStructureId *ID) interface{} {
 	var highestScore []byte
 	var highestKey interface{}
 
@@ -157,7 +157,7 @@ func (c *crush) dfs(m *sync.Map, wv *workingVector, idxInWorkingVector int) bool
 	return false
 }
 
-func (c *crush) place(dataStructureId ID, numDataCenterReplicas int, numRackReplicasInDataCenter int, numPeersReplicasInRack int) *workingVector {
+func (c *crush) place(dataStructureId *ID, numDataCenterReplicas int, numRackReplicasInDataCenter int, numPeersReplicasInRack int) *workingVector {
 	wv := &workingVector{
 		dataStructureId:     dataStructureId,
 		numReplicas:         []int{numDataCenterReplicas, numRackReplicasInDataCenter, numPeersReplicasInRack},
@@ -264,7 +264,7 @@ func (c *crush) removePeer(peerId uint64, metadata map[string]string) {
 // it keeps all intermediate steps
 // the only interesting end result for prod use is the pickedPeers slice
 type workingVector struct {
-	dataStructureId     ID
+	dataStructureId     *ID
 	numReplicas         []int
 	intermediateResults [][]interface{}
 	peerIds             []uint64

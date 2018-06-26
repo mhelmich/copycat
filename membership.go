@@ -182,12 +182,12 @@ func (m *membership) handleMemberJoinEvent(me serf.MemberEvent) {
 		for dsIdStr, raftId := range hi.DataStructureToRaftMapping {
 			m.raftIdToAddress[raftId] = addr
 			dsId, _ := parseIdFromString(dsIdStr)
-			raftIds, ok := m.dataStructureIdToRaftIds[dsId]
+			raftIds, ok := m.dataStructureIdToRaftIds[*dsId]
 			if !ok {
 				raftIds = make(map[uint64]bool)
 			}
 			raftIds[raftId] = false
-			m.dataStructureIdToRaftIds[dsId] = raftIds
+			m.dataStructureIdToRaftIds[*dsId] = raftIds
 			m.logger.Debugf("Added from [%s] dsId [%s] raft [%d %x] address [%s]", mem.Name, dsIdStr, raftId, raftId, addr)
 		}
 
@@ -217,7 +217,7 @@ func (m *membership) handleMemberLeaveEvent(me serf.MemberEvent) {
 		for dsIdStr, raftId := range hi.DataStructureToRaftMapping {
 			delete(m.raftIdToAddress, raftId)
 			dsId, _ := parseIdFromString(dsIdStr)
-			delete(m.dataStructureIdToRaftIds[dsId], raftId)
+			delete(m.dataStructureIdToRaftIds[*dsId], raftId)
 			m.logger.Debugf("Deleted from [%s] dsId [%s] raft [%d %x]", mem.Name, dsIdStr, raftId, raftId)
 		}
 
@@ -301,7 +301,7 @@ func (m *membership) handleDataStructureIdQuery(query *serf.Query) ([]byte, erro
 	return resp.Marshal()
 }
 
-func (m *membership) addDataStructureToRaftIdMapping(dataStructureId ID, raftId uint64) error {
+func (m *membership) addDataStructureToRaftIdMapping(dataStructureId *ID, raftId uint64) error {
 	m.serfTagMutex.Lock()
 	defer m.serfTagMutex.Unlock()
 
@@ -413,7 +413,7 @@ func (m *membership) findRaftWithId(raftId uint64) (*pb.RaftPeer, error) {
 	}
 }
 
-func (m *membership) findDataStructureWithId(id ID) (*pb.RaftPeer, error) {
+func (m *membership) findDataStructureWithId(id *ID) (*pb.RaftPeer, error) {
 	req := &pb.DataStructureIdRequest{DataStructureId: id.toProto()}
 	data, err := req.Marshal()
 	if err != nil {
@@ -446,10 +446,10 @@ func (m *membership) findDataStructureWithId(id ID) (*pb.RaftPeer, error) {
 					// NB: assume we have the mutex already!!
 					for _, peer := range resp.Peers {
 						m.raftIdToAddress[peer.RaftId] = peer.PeerAddress
-						rafts, ok := m.dataStructureIdToRaftIds[id]
+						rafts, ok := m.dataStructureIdToRaftIds[*id]
 						if !ok {
 							rafts = make(map[uint64]bool)
-							m.dataStructureIdToRaftIds[id] = rafts
+							m.dataStructureIdToRaftIds[*id] = rafts
 						}
 						rafts[peer.RaftId] = true
 						m.logger.Debugf("Added query from [%s] dsId [%s] raft [%d %x] address [%s]", serfResp.From, id.String(), peer.RaftId, peer.RaftId, peer.PeerAddress)
@@ -510,11 +510,11 @@ func (m *membership) getAddressForPeer(peerId uint64) string {
 // We don't care to get the complete list of peers - one is enough.
 // What we do care about though is that if we say the data structure doesn't exist,
 // it really doesn't exist.
-func (m *membership) onePeerForDataStructureId(dataStructureId ID) (*pb.RaftPeer, error) {
+func (m *membership) onePeerForDataStructureId(dataStructureId *ID) (*pb.RaftPeer, error) {
 	m.serfTagMutex.Lock()
 	defer m.serfTagMutex.Unlock()
 
-	raftIdsMap, ok := m.dataStructureIdToRaftIds[dataStructureId]
+	raftIdsMap, ok := m.dataStructureIdToRaftIds[*dataStructureId]
 	// we got nothing in our local cache
 	// let's make sure the entire cluster doesn't know about this data structure
 	if !ok {
@@ -543,8 +543,8 @@ func (m *membership) onePeerForDataStructureId(dataStructureId ID) (*pb.RaftPeer
 	return nil, fmt.Errorf("Can't find data structure with id [%d]", dataStructureId)
 }
 
-func (m *membership) peersForDataStructureId(dataStructureId ID) []*pb.RaftPeer {
-	raftIdsMap, ok := m.dataStructureIdToRaftIds[dataStructureId]
+func (m *membership) peersForDataStructureId(dataStructureId *ID) []*pb.RaftPeer {
+	raftIdsMap, ok := m.dataStructureIdToRaftIds[*dataStructureId]
 	if !ok {
 		m.logger.Infof("I don't know data structure with id [%s]", dataStructureId.String())
 		return nil
@@ -565,7 +565,7 @@ func (m *membership) peersForDataStructureId(dataStructureId ID) []*pb.RaftPeer 
 	return peers[:i]
 }
 
-func (m *membership) pickReplicaPeers(dataStructureId ID, numReplicas int) []uint64 {
+func (m *membership) pickReplicaPeers(dataStructureId *ID, numReplicas int) []uint64 {
 	wv := m.crush.place(dataStructureId, numReplicas, 1, 1)
 	return wv.peerIds
 }

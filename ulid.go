@@ -100,7 +100,7 @@ var dec = [...]byte{
 	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 }
 
-func newId() (ID, error) {
+func newId() (*ID, error) {
 	var id ID
 	now := nowUnixUtc()
 
@@ -112,38 +112,38 @@ func newId() (ID, error) {
 	id[5] = byte(now)
 
 	_, err := rand.Reader.Read(id[6:])
-	return id, err
+	return &id, err
 }
 
-func parseId(bites []byte) (ID, error) {
+func parseId(bites []byte) (*ID, error) {
 	var id ID
 	id128 := &pb.Id128{}
 	err := id128.Unmarshal(bites)
 	if err != nil {
-		return id, err
+		return &id, err
 	}
 
 	err = uint64ToBytesInto(id128.Upper, id[:8])
 	if err != nil {
-		return id, err
+		return &id, err
 	}
 
 	err = uint64ToBytesInto(id128.Lower, id[8:])
 	if err != nil {
-		return id, err
+		return &id, err
 	}
 
-	return id, nil
+	return &id, nil
 }
 
-func parseIdFromString(v string) (ID, error) {
+func parseIdFromString(v string) (*ID, error) {
 	var id ID
 	if len(v) != encodedSize {
-		return id, fmt.Errorf("Value can't be encoded")
+		return &id, fmt.Errorf("Value can't be encoded")
 	}
 
 	if v[0] > '7' {
-		return id, fmt.Errorf("Buffer overflow")
+		return &id, fmt.Errorf("Buffer overflow")
 	}
 
 	// 6 bytes timestamp (48 bits)
@@ -166,21 +166,21 @@ func parseIdFromString(v string) (ID, error) {
 	id[14] = ((dec[v[22]] << 7) | (dec[v[23]] << 2) | (dec[v[24]] >> 3))
 	id[15] = ((dec[v[24]] << 5) | dec[v[25]])
 
-	return id, nil
+	return &id, nil
 }
 
-func parseIdFromProto(v *pb.Id128) (ID, error) {
+func parseIdFromProto(v *pb.Id128) (*ID, error) {
 	var id ID
 	err := uint64ToBytesInto(v.Upper, id[:8])
 	if err != nil {
-		return id, err
+		return &id, err
 	}
 
 	err = uint64ToBytesInto(v.Lower, id[8:])
 	if err != nil {
-		return id, err
+		return &id, err
 	}
-	return id, nil
+	return &id, nil
 }
 
 // IDs are handles to data structures. The only valid two operations on an id are
@@ -190,7 +190,7 @@ type ID [16]byte
 // String returns a lexicographically sortable string encoded ULID
 // (26 characters, non-standard base 32) e.g. 01CFR5R4JJE9KNRAJFFEAQ2SAJ
 // Format: tttttttttteeeeeeeeeeeeeeee where t is time and e is entropy
-func (id ID) String() string {
+func (id *ID) String() string {
 	bites := make([]byte, encodedSize)
 
 	// 10 byte timestamp
@@ -226,14 +226,14 @@ func (id ID) String() string {
 	return string(bites)
 }
 
-func (id ID) toProto() *pb.Id128 {
+func (id *ID) toProto() *pb.Id128 {
 	return &pb.Id128{
 		Upper: bytesToUint64(id[:8]),
 		Lower: bytesToUint64(id[8:]),
 	}
 }
 
-func (id ID) toBytes() ([]byte, error) {
+func (id *ID) toBytes() ([]byte, error) {
 	id128 := &pb.Id128{
 		Upper: bytesToUint64(id[:8]),
 		Lower: bytesToUint64(id[8:]),
@@ -244,6 +244,6 @@ func (id ID) toBytes() ([]byte, error) {
 
 // CompareTo returns an integer comparing id and other lexicographically.
 // The result will be 0 if id==other, -1 if id < other, and +1 if id > other.
-func (id ID) CompareTo(other ID) int {
+func (id *ID) CompareTo(other *ID) int {
 	return bytes.Compare(id[:], other[:])
 }

@@ -63,11 +63,11 @@ func (_m *mockMembershipProxy) getRaftTransportServiceClientForRaftId(raftId uin
 }
 
 // newDetachedRaftBackend provides a mock function with given fields: dataStructureId, raftId, config, peers
-func (_m *mockMembershipProxy) newDetachedRaftBackend(dataStructureId ID, raftId uint64, config *Config, peers []*pb.RaftPeer) (*raftBackend, error) {
+func (_m *mockMembershipProxy) newDetachedRaftBackend(dataStructureId *ID, raftId uint64, config *Config, peers []*pb.RaftPeer) (*raftBackend, error) {
 	ret := _m.Called(dataStructureId, raftId, config, peers)
 
 	var r0 *raftBackend
-	if rf, ok := ret.Get(0).(func(ID, uint64, *Config, []*pb.RaftPeer) *raftBackend); ok {
+	if rf, ok := ret.Get(0).(func(*ID, uint64, *Config, []*pb.RaftPeer) *raftBackend); ok {
 		r0 = rf(dataStructureId, raftId, config, peers)
 	} else {
 		if ret.Get(0) != nil {
@@ -76,7 +76,7 @@ func (_m *mockMembershipProxy) newDetachedRaftBackend(dataStructureId ID, raftId
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(ID, uint64, *Config, []*pb.RaftPeer) error); ok {
+	if rf, ok := ret.Get(1).(func(*ID, uint64, *Config, []*pb.RaftPeer) error); ok {
 		r1 = rf(dataStructureId, raftId, config, peers)
 	} else {
 		r1 = ret.Error(1)
@@ -86,11 +86,11 @@ func (_m *mockMembershipProxy) newDetachedRaftBackend(dataStructureId ID, raftId
 }
 
 // newInteractiveRaftBackendForExistingGroup provides a mock function with given fields: dataStructureId, config, provider
-func (_m *mockMembershipProxy) newInteractiveRaftBackendForExistingGroup(dataStructureId ID, config *Config, provider SnapshotProvider) (*raftBackend, error) {
+func (_m *mockMembershipProxy) newInteractiveRaftBackendForExistingGroup(dataStructureId *ID, config *Config, provider SnapshotProvider) (*raftBackend, error) {
 	ret := _m.Called(dataStructureId, config, provider)
 
 	var r0 *raftBackend
-	if rf, ok := ret.Get(0).(func(ID, *Config, SnapshotProvider) *raftBackend); ok {
+	if rf, ok := ret.Get(0).(func(*ID, *Config, SnapshotProvider) *raftBackend); ok {
 		r0 = rf(dataStructureId, config, provider)
 	} else {
 		if ret.Get(0) != nil {
@@ -99,7 +99,7 @@ func (_m *mockMembershipProxy) newInteractiveRaftBackendForExistingGroup(dataStr
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(ID, *Config, SnapshotProvider) error); ok {
+	if rf, ok := ret.Get(1).(func(*ID, *Config, SnapshotProvider) error); ok {
 		r1 = rf(dataStructureId, config, provider)
 	} else {
 		r1 = ret.Error(1)
@@ -109,11 +109,11 @@ func (_m *mockMembershipProxy) newInteractiveRaftBackendForExistingGroup(dataStr
 }
 
 // onePeerForDataStructureId provides a mock function with given fields: dataStructureId
-func (_m *mockMembershipProxy) onePeerForDataStructureId(dataStructureId ID) (*pb.RaftPeer, error) {
+func (_m *mockMembershipProxy) onePeerForDataStructureId(dataStructureId *ID) (*pb.RaftPeer, error) {
 	ret := _m.Called(dataStructureId)
 
 	var r0 *pb.RaftPeer
-	if rf, ok := ret.Get(0).(func(ID) *pb.RaftPeer); ok {
+	if rf, ok := ret.Get(0).(func(*ID) *pb.RaftPeer); ok {
 		r0 = rf(dataStructureId)
 	} else {
 		if ret.Get(0) != nil {
@@ -122,7 +122,7 @@ func (_m *mockMembershipProxy) onePeerForDataStructureId(dataStructureId ID) (*p
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(ID) error); ok {
+	if rf, ok := ret.Get(1).(func(*ID) error); ok {
 		r1 = rf(dataStructureId)
 	} else {
 		r1 = ret.Error(1)
@@ -132,11 +132,11 @@ func (_m *mockMembershipProxy) onePeerForDataStructureId(dataStructureId ID) (*p
 }
 
 // startNewRaftGroup provides a mock function with given fields: dataStructureId, numReplicas
-func (_m *mockMembershipProxy) startNewRaftGroup(dataStructureId ID, numReplicas int) ([]*pb.RaftPeer, error) {
+func (_m *mockMembershipProxy) startNewRaftGroup(dataStructureId *ID, numReplicas int) ([]*pb.RaftPeer, error) {
 	ret := _m.Called(dataStructureId, numReplicas)
 
 	var r0 []*pb.RaftPeer
-	if rf, ok := ret.Get(0).(func(ID, int) []*pb.RaftPeer); ok {
+	if rf, ok := ret.Get(0).(func(*ID, int) []*pb.RaftPeer); ok {
 		r0 = rf(dataStructureId, numReplicas)
 	} else {
 		if ret.Get(0) != nil {
@@ -145,7 +145,7 @@ func (_m *mockMembershipProxy) startNewRaftGroup(dataStructureId ID, numReplicas
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(ID, int) error); ok {
+	if rf, ok := ret.Get(1).(func(*ID, int) error); ok {
 		r1 = rf(dataStructureId, numReplicas)
 	} else {
 		r1 = ret.Error(1)

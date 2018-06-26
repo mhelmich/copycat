@@ -218,7 +218,7 @@ func TestMembershipNodeJoin(t *testing.T) {
 	assert.Equal(t, "machine2:9877", m.raftIdToAddress[uint64(88)])
 	assert.Equal(t, "machine2:9877", m.getAddressForRaftId(uint64(88)))
 	assert.Equal(t, 1, len(m.dataStructureIdToRaftIds))
-	raftIdsForDS := m.dataStructureIdToRaftIds[dataStructureId]
+	raftIdsForDS := m.dataStructureIdToRaftIds[*dataStructureId]
 	assert.Equal(t, 2, len(raftIdsForDS))
 	for rId := range raftIdsForDS {
 		_, ok := m.raftIdToAddress[rId]
@@ -282,8 +282,8 @@ func TestMembershipDataStructureQuery(t *testing.T) {
 	randomDSId, err := newId()
 	assert.Nil(t, err)
 	raftId1 := randomRaftId()
-	m2.dataStructureIdToRaftIds[randomDSId] = make(map[uint64]bool)
-	m2.dataStructureIdToRaftIds[randomDSId][raftId1] = false
+	m2.dataStructureIdToRaftIds[*randomDSId] = make(map[uint64]bool)
+	m2.dataStructureIdToRaftIds[*randomDSId][raftId1] = false
 	m2.raftIdToAddress[raftId1] = theAddressImLookingFor
 
 	log.Infof("Querying for DS with id [%d]", randomDSId)
@@ -334,10 +334,10 @@ func TestMembershipPeersForDataStructure(t *testing.T) {
 	address2 := "address_2"
 	address3 := "address_3"
 
-	m.dataStructureIdToRaftIds[myDataStructureId] = make(map[uint64]bool)
-	m.dataStructureIdToRaftIds[myDataStructureId][raftId1] = false
-	m.dataStructureIdToRaftIds[myDataStructureId][raftId2] = false
-	m.dataStructureIdToRaftIds[myDataStructureId][raftId3] = false
+	m.dataStructureIdToRaftIds[*myDataStructureId] = make(map[uint64]bool)
+	m.dataStructureIdToRaftIds[*myDataStructureId][raftId1] = false
+	m.dataStructureIdToRaftIds[*myDataStructureId][raftId2] = false
+	m.dataStructureIdToRaftIds[*myDataStructureId][raftId3] = false
 
 	m.raftIdToAddress[raftId1] = address1
 	m.raftIdToAddress[raftId2] = address2

@@ -89,14 +89,14 @@ func NewCopyCat(config *Config) (CopyCat, error) {
 type CopyCat interface {
 	// Acquires a new CopyCat data structure id. The consumer is in the responsibility to keep this id save.
 	// If the id is lost, the data structure can't be accessed anymore.
-	NewDataStructureID() (ID, error)
+	NewDataStructureID() (*ID, error)
 	// Convenience wrapper to connect to a data structure with the string representation of an id.
 	SubscribeToDataStructureWithStringID(id string, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error)
 	// SubscribeToDataStructure allows the consumer to connect to a data structure identified by id.
 	// In addition to that a SnapshotProvider needs to be passed in to enable CopyCat to create consistent snapshots.
 	// CopyCat responds with a write only proposal channel, a read-only commit channel, a read-only error channel, and
 	// a SnapshotConsumer that is used to retrieve consistent snapshots from CopyCat.
-	SubscribeToDataStructure(id ID, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error)
+	SubscribeToDataStructure(id *ID, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error)
 	Shutdown()
 }
 
@@ -130,14 +130,14 @@ type raftTransport interface {
 type membershipProxy interface {
 	// called by copyCatTransport
 	getRaftTransportServiceClientForRaftId(raftId uint64) (pb.RaftTransportServiceClient, error)
-	newDetachedRaftBackend(dataStructureId ID, raftId uint64, config *Config, peers []*pb.RaftPeer) (*raftBackend, error)
+	newDetachedRaftBackend(dataStructureId *ID, raftId uint64, config *Config, peers []*pb.RaftPeer) (*raftBackend, error)
 	stepRaft(ctx context.Context, msg raftpb.Message) error
 	addToRaftGroup(ctx context.Context, existingRaftId uint64, newRaftId uint64) error
 
 	// called by CopyCat
-	onePeerForDataStructureId(dataStructureId ID) (*pb.RaftPeer, error)
-	startNewRaftGroup(dataStructureId ID, numReplicas int) ([]*pb.RaftPeer, error)
-	newInteractiveRaftBackendForExistingGroup(dataStructureId ID, config *Config, provider SnapshotProvider) (*raftBackend, error)
+	onePeerForDataStructureId(dataStructureId *ID) (*pb.RaftPeer, error)
+	startNewRaftGroup(dataStructureId *ID, numReplicas int) ([]*pb.RaftPeer, error)
+	newInteractiveRaftBackendForExistingGroup(dataStructureId *ID, config *Config, provider SnapshotProvider) (*raftBackend, error)
 	stopRaft(raftId uint64) error
 	addRaftToGroupRemotely(newRaftId uint64, peers *pb.RaftPeer) error
 	stop() error
@@ -146,12 +146,12 @@ type membershipProxy interface {
 // Internal interface that is used in copycat and the transport.
 // It was introduced for mocking purposes.
 type memberList interface {
-	onePeerForDataStructureId(dataStructureId ID) (*pb.RaftPeer, error)
-	peersForDataStructureId(dataStructureId ID) []*pb.RaftPeer
-	addDataStructureToRaftIdMapping(dataStructureId ID, raftId uint64) error
+	onePeerForDataStructureId(dataStructureId *ID) (*pb.RaftPeer, error)
+	peersForDataStructureId(dataStructureId *ID) []*pb.RaftPeer
+	addDataStructureToRaftIdMapping(dataStructureId *ID, raftId uint64) error
 	removeDataStructureToRaftIdMapping(raftId uint64) error
 	getAddressForRaftId(raftId uint64) string
-	pickReplicaPeers(dataStructureId ID, numReplicas int) []uint64
+	pickReplicaPeers(dataStructureId *ID, numReplicas int) []uint64
 	getAddressForPeer(peerId uint64) string
 	stop() error
 }

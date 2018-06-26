@@ -70,7 +70,7 @@ func newCopyCat(config *Config) (*copyCatImpl, error) {
 	return cc, nil
 }
 
-func (c *copyCatImpl) NewDataStructureID() (ID, error) {
+func (c *copyCatImpl) NewDataStructureID() (*ID, error) {
 	return newId()
 }
 
@@ -84,7 +84,7 @@ func (c *copyCatImpl) SubscribeToDataStructureWithStringID(id string, provider S
 }
 
 // takes a data structure id, joins the raft group as learner, assembles and exposes the raft log
-func (c *copyCatImpl) SubscribeToDataStructure(id ID, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error) {
+func (c *copyCatImpl) SubscribeToDataStructure(id *ID, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error) {
 	var interactiveBackend *raftBackend
 	var err error
 	var remoteRaftPeers []*pb.RaftPeer
@@ -120,7 +120,7 @@ func (c *copyCatImpl) SubscribeToDataStructure(id ID, provider SnapshotProvider)
 	return interactiveBackend.proposeChan, interactiveBackend.commitChan, interactiveBackend.errorChan, func() ([]byte, error) { return interactiveBackend.snapshot() }, nil
 }
 
-func (c *copyCatImpl) subscribeToExistingRaftGroup(dataStructureId ID, config *Config, peer *pb.RaftPeer, provider SnapshotProvider) (*raftBackend, error) {
+func (c *copyCatImpl) subscribeToExistingRaftGroup(dataStructureId *ID, config *Config, peer *pb.RaftPeer, provider SnapshotProvider) (*raftBackend, error) {
 	// 1. create new interactive raft in join mode (without any peers)
 	backend, err := c.membership.newInteractiveRaftBackendForExistingGroup(dataStructureId, config, provider)
 	if err != nil {
