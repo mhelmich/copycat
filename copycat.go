@@ -19,6 +19,7 @@ package copycat
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strconv"
 
 	"github.com/mhelmich/copycat/pb"
@@ -44,6 +45,13 @@ func sanitizeConfig(config *Config) {
 
 	if config.CopyCatDataDir == "" {
 		config.logger.Panic("CopyCatDataDir is empty.")
+	}
+
+	if _, err := os.Stat(config.CopyCatDataDir); os.IsNotExist(err) {
+		err := os.MkdirAll(config.CopyCatDataDir, os.ModePerm)
+		if err != nil {
+			config.logger.Panicf("Can't create dir: %s", config.CopyCatDataDir)
+		}
 	}
 }
 
