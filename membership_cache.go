@@ -126,7 +126,7 @@ func (mc *membershipCache) publishMetadataAboutRaftBackend(dataStructureId *ID, 
 		return fmt.Errorf("Raft backend with id [%d %x] existed already", backend.raftId, backend.raftId)
 	}
 
-	mc.logger.Errorf("Publish metadata %s %d %x", dataStructureId.String(), backend.raftId, backend.raftId)
+	mc.logger.Infof("Publish metadata %s %d %x", dataStructureId.String(), backend.raftId, backend.raftId)
 	return mc.membership.addDataStructureToRaftIdMapping(dataStructureId, backend.raftId)
 }
 
