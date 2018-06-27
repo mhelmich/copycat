@@ -81,6 +81,9 @@ func (c *copyCatImpl) AllocateNewDataStructure(opts ...AllocationOption) (*ID, e
 	var err error
 	var id *ID
 
+	// TODO - limit the number of iterations
+	// as long as it takes, try making a new unique id that
+	// doesn't exist in the cluster yet (aka is really unique)
 	for peer == nil || err != nil {
 		id, err = newId()
 		if err != nil {
@@ -90,22 +93,25 @@ func (c *copyCatImpl) AllocateNewDataStructure(opts ...AllocationOption) (*ID, e
 		peer, err = c.membership.onePeerForDataStructureId(id)
 	}
 
+	// apply all provided allocation options
 	allocOpts := &allocationOptions{}
 	for _, opt := range opts {
 		opt(allocOpts)
 	}
 
+	// fire up a raft group
 	remoteRaftPeers, err := c.membership.startNewRaftGroup(id, allocOpts.dataCenterReplicas)
 	if err != nil {
 		c.logger.Errorf("Can't connect to data structure [%s]: %s", id, err.Error())
 		return nil, err
 	}
 
-	var buffer bytes.Buffer
+	// print out ids of started rafts
+	buffer := bytes.Buffer{}
 	for _, p := range remoteRaftPeers {
 		buffer.WriteString(fmt.Sprintf(" %d %x ", p.RaftId, p.RaftId))
 	}
-	c.logger.Infof("Allocated new raft group [%s]", buffer.String())
+	c.logger.Infof("Allocated new raft group [%s] for data structure [%s]", buffer.String(), id.String())
 
 	return id, nil
 }
