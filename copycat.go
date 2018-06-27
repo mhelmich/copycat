@@ -41,6 +41,10 @@ func sanitizeConfig(config *Config) {
 			"serf_port":    strconv.Itoa(config.GossipPort),
 		})
 	}
+
+	if config.CopyCatDataDir == "" {
+		config.logger.Panic("CopyCatDataDir is empty.")
+	}
 }
 
 func newCopyCat(config *Config) (*copyCatImpl, error) {
