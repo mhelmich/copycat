@@ -115,6 +115,9 @@ func newMembership(config *Config) (*membership, error) {
 		}
 
 		logger.Infof("Contacted %d out of %d nodes: %s", numContactedNodes, len(config.PeersToContact), strings.Join(config.PeersToContact, ","))
+		if numContactedNodes == 0 {
+			logger.Panicf("Cannot contact any of the defined nodes: [%s]", strings.Join(config.PeersToContact, ", "))
+		}
 	} else {
 		logger.Info("No peers defined - starting a brandnew cluster!")
 	}
