@@ -105,6 +105,9 @@ type CopyCat interface {
 	NewDataStructureID() (*ID, error)
 	// AllocateNewDataStructure creates a new data structure and returns its unique ID.
 	// The consumer is in the responsibility to keep this id save. If the id is lost, the data structure can't be accessed anymore.
+	// TODO - change the API to return the id right away
+	// and a channel that is closed when the raft is being created
+	// this way consumers can move on with storing the ID somewhere while they wait for their raft groups to come up
 	AllocateNewDataStructure(opts ...AllocationOption) (*ID, error)
 	// Convenience wrapper to connect to a data structure with the string representation of an id.
 	SubscribeToDataStructureWithStringID(id string, provider SnapshotProvider) (chan<- []byte, <-chan []byte, <-chan error, SnapshotConsumer, error)
