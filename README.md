@@ -1,10 +1,10 @@
 # Welcome to CopyCat
-CopyCat is a library providing long-range (inter data center) data transport with ordering and exactly-once guarantees. On top of that CopyCat tries to make an effort to keep your data highly available by creating replicas.
+CopyCat is a library providing long-range (cross data center) data transport with ordering and exactly-once guarantees. On top of that CopyCat tries to make an effort to keep your data highly available by creating replicas.
 
-The basic promise of CopyCat is that users are able to create and query arbitrary data structures and CopyCat copies them consistent across multiple other nodes in order from them to be highly available. For that purpose CopyCat heavily relies on the [excellent raft consensus implementation of etcd](https://github.com/coreos/etcd/tree/master/raft). The foundation of their work is the paper outlining the [raft protocol as an understandable consensus algorithm](https://raft.github.io/raft.pdf). CopyCat does not require a central repository for meta data (such as Zookeeper) instead it is trading its meta data via the gossip-like [SWIM protocol](http://www.cs.cornell.edu/Info/Projects/Spinglass/public_pdfs/SWIM.pdf).
+The basic promise of CopyCat is that users are able to implement arbitrary data structures and CopyCat copies them consistently across multiple other nodes in order for them to be highly available. For that purpose CopyCat heavily relies on the [excellent raft consensus implementation of etcd](https://github.com/coreos/etcd/tree/master/raft). The foundation of CoreOS' work is the paper outlining the [raft protocol as an understandable consensus algorithm](https://raft.github.io/raft.pdf). CopyCat does not require a central repository for meta data (such as Zookeeper) instead it is trading its meta data via the gossip-like [SWIM protocol](http://www.cs.cornell.edu/Info/Projects/Spinglass/public_pdfs/SWIM.pdf).
 
 ## What is CopyCat not?
-* CopyCat is not a data structure server (like Redis). CopyCat is not a service at all! It's just a library. The responsibility to serve up data in a particular format lies with the consumer of CopyCat. It would actually fairly easy to build a data structure server on top of CopyCat and further down in this readme we will do exactly that.
+* CopyCat is not a data structure server (like Redis). CopyCat is not a service at all! It's just a library. The responsibility to serve up data in a particular format lies with the consumer of CopyCat. It would actually be fairly easy to build a data structure server on top of CopyCat. Further down in this readme we will do exactly that.
 * CopyCat does not offer consistency between its nodes.
 
 ## Sample Code
