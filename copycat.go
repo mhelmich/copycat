@@ -106,7 +106,7 @@ func (c *copyCatImpl) AllocateNewDataStructure(opts ...AllocationOption) (*ID, e
 	}
 
 	// apply all provided allocation options
-	allocOpts := &allocationOptions{}
+	allocOpts := defaultAllocationOptions()
 	for _, opt := range opts {
 		opt(allocOpts)
 	}

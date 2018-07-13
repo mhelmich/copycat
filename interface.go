@@ -90,6 +90,12 @@ type allocationOptions struct {
 	dataCenterReplicas int
 }
 
+func defaultAllocationOptions() *allocationOptions {
+	return &allocationOptions{
+		dataCenterReplicas: 1,
+	}
+}
+
 type AllocationOption func(*allocationOptions)
 
 func WithDataCenterReplicas(numDataCenterReplicas int) AllocationOption {
