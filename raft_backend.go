@@ -94,7 +94,7 @@ func _newRaftBackend(newRaftId uint64, config *Config, peers []*pb.RaftPeer, pro
 
 	storeDir := config.CopyCatDataDir + "raft-" + uint64ToString(newRaftId) + "/"
 	startFromExistingState := storageExists(storeDir)
-	bs, err := openBoltStorage(storeDir, logger)
+	bs, err := openBadgerStorage(storeDir, logger)
 	if err != nil {
 		config.logger.Errorf("Can't open data store: %s", err.Error())
 		return nil, err

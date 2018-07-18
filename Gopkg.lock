@@ -3,6 +3,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/AndreasBriese/bbloom"
+  packages = ["."]
+  revision = "28f7e881ca57bc00e028f9ede9f0d9104cfeef5e"
+
+[[projects]]
+  branch = "master"
   name = "github.com/armon/go-metrics"
   packages = ["."]
   revision = "783273d703149aaeb9897cf58613d5af48861c25"
@@ -27,6 +33,25 @@
   packages = ["spew"]
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
   version = "v1.1.0"
+
+[[projects]]
+  name = "github.com/dgraph-io/badger"
+  packages = [
+    ".",
+    "options",
+    "protos",
+    "skl",
+    "table",
+    "y"
+  ]
+  revision = "391b6d3b93e6014fe8c2971fcc0c1266e47dbbd9"
+  version = "v1.5.3"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/dgryski/go-farm"
+  packages = ["."]
+  revision = "2de33835d10275975374b37b2dcfd22c9020a1f5"
 
 [[projects]]
   name = "github.com/gogo/protobuf"
@@ -106,6 +131,12 @@
   packages = ["."]
   revision = "5a2b9fab83ff0f8bfc99684bd5f43a37abe560f1"
   version = "v1.0.8"
+
+[[projects]]
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
 
 [[projects]]
   name = "github.com/pmezard/go-difflib"
@@ -245,6 +276,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4c8dbdab3e5a482e163874c892cd8120b00f3742f043186178b68b996fd05614"
+  inputs-digest = "13ae11b33ff0dc5311412b1c6582656b6c221536f74153d462a9a3f940d16d18"
   solver-name = "gps-cdcl"
   solver-version = 1

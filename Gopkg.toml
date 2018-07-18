@@ -65,3 +65,7 @@
   go-tests = true
   unused-packages = true
   non-go = true
+
+[[constraint]]
+  name = "github.com/dgraph-io/badger"
+  version = "1.5.3"
