@@ -155,16 +155,17 @@ type raftTransport interface {
 type membershipProxy interface {
 	// called by copyCatTransport
 	getRaftTransportServiceClientForRaftId(raftId uint64) (pb.RaftTransportServiceClient, error)
+	// this call needs to be idempotent as it is called multiple times for the same input
 	newDetachedRaftBackend(dataStructureId *ID, raftId uint64, config *Config, peers []*pb.RaftPeer) (*raftBackend, error)
 	stepRaft(ctx context.Context, msg raftpb.Message) error
-	addToRaftGroup(ctx context.Context, existingRaftId uint64, newRaftId uint64) error
+	addLearnerToRaftGroup(ctx context.Context, existingRaftId uint64, newRaftId uint64) error
 
 	// called by CopyCat
 	onePeerForDataStructureId(dataStructureId *ID) (*pb.RaftPeer, error)
 	startNewRaftGroup(dataStructureId *ID, numReplicas int) ([]*pb.RaftPeer, error)
 	newInteractiveRaftBackendForExistingGroup(dataStructureId *ID, config *Config, provider SnapshotProvider) (*raftBackend, error)
 	stopRaft(raftId uint64) error
-	addRaftToGroupRemotely(newRaftId uint64, peers *pb.RaftPeer) error
+	addLearnerToRaftGroupRemotely(newRaftId uint64, peers *pb.RaftPeer) error
 	stop() error
 }
 
@@ -178,6 +179,7 @@ type memberList interface {
 	getAddressForRaftId(raftId uint64) string
 	pickReplicaPeers(dataStructureId *ID, numReplicas int) []uint64
 	getAddressForPeer(peerId uint64) string
+	getNumReplicasForDataStructure(id *ID) int
 	stop() error
 }
 

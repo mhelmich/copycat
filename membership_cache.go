@@ -17,6 +17,7 @@
 package copycat
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"sync"
@@ -48,7 +49,7 @@ func newMembershipCache(config *Config) (*membershipCache, error) {
 		return nil, err
 	}
 
-	return &membershipCache{
+	mc := &membershipCache{
 		membership:          m,
 		myAddress:           config.address(),
 		raftIdToRaftBackend: &sync.Map{},
@@ -60,7 +61,39 @@ func newMembershipCache(config *Config) (*membershipCache, error) {
 		newCopyCatServiceClientFunc:                   pb.NewCopyCatServiceClient,
 		connectionCacheFunc:                           _getConnectionForAddress,
 		logger:                                        config.logger.WithFields(log.Fields{}),
-	}, nil
+	}
+
+	go mc.rehashDataStructureIds(m.rehashDataStructureIdChan)
+	return mc, nil
+}
+
+// this being called as we see nodes fail or leave the cluster
+// it makes sure all data structures have enough replicas
+func (mc *membershipCache) rehashDataStructureIds(ch chan *ID) {
+	for { // ever...
+		id, ok := <-ch
+		if !ok {
+			return
+		}
+
+		mc.logger.Infof("Finding new replicas for data structure [%s]", id.String())
+		numReplicas := mc.membership.getNumReplicasForDataStructure(id)
+		if numReplicas <= 0 {
+			mc.logger.Errorf("Num replicas can't be zero or less: %d", numReplicas)
+		}
+
+		peers, err := mc.startRaftsRemotely(id, numReplicas)
+		if err != nil {
+			mc.logger.Errorf("Can't create replicas: %s", err.Error())
+		}
+
+		var buffer bytes.Buffer
+		for _, peer := range peers {
+			buffer.WriteString(peer.String())
+			buffer.WriteString(", ")
+		}
+		mc.logger.Infof("New peers for data structure [%s] are: %s", id.String(), buffer.String())
+	}
 }
 
 func (mc *membershipCache) stepRaft(ctx context.Context, msg raftpb.Message) error {
@@ -74,7 +107,7 @@ func (mc *membershipCache) stepRaft(ctx context.Context, msg raftpb.Message) err
 	return backend.step(ctx, msg)
 }
 
-func (mc *membershipCache) addToRaftGroup(ctx context.Context, existingRaftId uint64, newRaftId uint64) error {
+func (mc *membershipCache) addLearnerToRaftGroup(ctx context.Context, existingRaftId uint64, newRaftId uint64) error {
 	val, ok := mc.raftIdToRaftBackend.Load(existingRaftId)
 	if !ok {
 		return fmt.Errorf("Can't find raft backend with id: %d %x", existingRaftId, existingRaftId)
@@ -211,7 +244,7 @@ func (mc *membershipCache) stopAllRaftsAsync(peerIds []uint64) {
 	}
 }
 
-func (mc *membershipCache) addRaftToGroupRemotely(newRaftId uint64, peer *pb.RaftPeer) error {
+func (mc *membershipCache) addLearnerToRaftGroupRemotely(newRaftId uint64, peer *pb.RaftPeer) error {
 	client, err := mc.newCopyCatServiceClient(mc.addressToConnection, peer.PeerAddress)
 	if err != nil {
 		err = fmt.Errorf("Can't connect to %d %x %s: %s", peer.RaftId, peer.RaftId, peer.PeerAddress, err.Error())
@@ -219,7 +252,7 @@ func (mc *membershipCache) addRaftToGroupRemotely(newRaftId uint64, peer *pb.Raf
 		return err
 	}
 
-	_, err = client.AddRaftToRaftGroup(context.TODO(), &pb.AddRaftRequest{
+	_, err = client.AddLearnerToRaftGroup(context.TODO(), &pb.AddRaftRequest{
 		NewRaftId:      newRaftId,
 		ExistingRaftId: peer.RaftId,
 	})

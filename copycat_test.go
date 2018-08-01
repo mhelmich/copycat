@@ -20,14 +20,17 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCopyCatBasic(t *testing.T) {
 	config1 := DefaultConfig()
-	config1.CopyCatDataDir = "./test-TestCopyCatBasic-" + uint64ToString(randomRaftId()) + "/"
-	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
+	config1.CopyCatDataDir = "./test-TestCopyCatBasic/"
+	err := os.RemoveAll(config1.CopyCatDataDir)
+	assert.Nil(t, err)
+	err = os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	cc1, err := newCopyCat(config1)
 	assert.Nil(t, err)
@@ -40,21 +43,25 @@ func TestCopyCatBasic(t *testing.T) {
 func TestCopyCatNewDataStructure(t *testing.T) {
 	config1 := DefaultConfig()
 	config1.Hostname = "127.0.0.1"
-	config1.CopyCatDataDir = "./test-TestCopyCatNewDataStructure-" + uint64ToString(randomRaftId()) + "/"
+	config1.CopyCatDataDir = "./test-TestCopyCatNewDataStructure/"
 	config1.GossipPort = 10000
 	config1.CopyCatPort = 20000
-	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
+	err := os.RemoveAll(config1.CopyCatDataDir)
+	assert.Nil(t, err)
+	err = os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	cc1, err := newCopyCat(config1)
 	assert.Nil(t, err)
 
 	config2 := DefaultConfig()
 	config2.Hostname = "127.0.0.1"
-	config2.CopyCatDataDir = "./test-TestCopyCatNewDataStructure-" + uint64ToString(randomRaftId()) + "/"
+	config2.CopyCatDataDir = "./test-TestCopyCatNewDataStructure/"
 	config2.GossipPort = config1.GossipPort + 1111
 	config2.CopyCatPort = config1.CopyCatPort + 1111
 	config2.PeersToContact = make([]string, 1)
 	config2.PeersToContact[0] = config1.Hostname + ":" + strconv.Itoa(config1.GossipPort)
+	err = os.RemoveAll(config2.CopyCatDataDir)
+	assert.Nil(t, err)
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	cc2, err := newCopyCat(config2)
@@ -83,21 +90,25 @@ func TestCopyCatNewDataStructure(t *testing.T) {
 func TestCopyCatSubscribeToExistingDataStructure(t *testing.T) {
 	config1 := DefaultConfig()
 	config1.Hostname = "127.0.0.1"
-	config1.CopyCatDataDir = "./test-TestCopyCatSubscribeToExistingDataStructure-" + uint64ToString(randomRaftId()) + "/"
+	config1.CopyCatDataDir = "./test-TestCopyCatSubscribeToExistingDataStructure/"
 	config1.GossipPort = 10000
 	config1.CopyCatPort = 20000
-	err := os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
+	err := os.RemoveAll(config1.CopyCatDataDir)
+	assert.Nil(t, err)
+	err = os.MkdirAll(config1.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	cc1, err := newCopyCat(config1)
 	assert.Nil(t, err)
 
 	config2 := DefaultConfig()
 	config2.Hostname = "127.0.0.1"
-	config2.CopyCatDataDir = "./test-TestCopyCatSubscribeToExistingDataStructure-" + uint64ToString(randomRaftId()) + "/"
+	config2.CopyCatDataDir = "./test-TestCopyCatSubscribeToExistingDataStructure/"
 	config2.GossipPort = config1.GossipPort + 1111
 	config2.CopyCatPort = config1.CopyCatPort + 1111
 	config2.PeersToContact = make([]string, 1)
 	config2.PeersToContact[0] = config1.Hostname + ":" + strconv.Itoa(config1.GossipPort)
+	err = os.RemoveAll(config2.CopyCatDataDir)
+	assert.Nil(t, err)
 	err = os.MkdirAll(config2.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	cc2, err := newCopyCat(config2)
@@ -117,11 +128,13 @@ func TestCopyCatSubscribeToExistingDataStructure(t *testing.T) {
 
 	config3 := DefaultConfig()
 	config3.Hostname = "127.0.0.1"
-	config3.CopyCatDataDir = "./test-TestCopyCatSubscribeToExistingDataStructure-" + uint64ToString(randomRaftId()) + "/"
+	config3.CopyCatDataDir = "./test-TestCopyCatSubscribeToExistingDataStructure/"
 	config3.GossipPort = config2.GossipPort + 1111
 	config3.CopyCatPort = config2.CopyCatPort + 1111
 	config3.PeersToContact = make([]string, 1)
 	config3.PeersToContact[0] = config1.Hostname + ":" + strconv.Itoa(config1.GossipPort)
+	err = os.RemoveAll(config3.CopyCatDataDir)
+	assert.Nil(t, err)
 	err = os.MkdirAll(config3.CopyCatDataDir, os.ModePerm)
 	assert.Nil(t, err)
 	cc3, err := newCopyCat(config3)
@@ -137,15 +150,31 @@ func TestCopyCatSubscribeToExistingDataStructure(t *testing.T) {
 	close(proposeChan1)
 	close(proposeChan3)
 
+	// HACK - yupp...shutting down the underlying store is aync :)
+	// that's why removing the folder fails sometimes
+	// I can live with this ugliness for now
+
 	cc3.Shutdown()
 	err = os.RemoveAll(config3.CopyCatDataDir)
+	for i := 0; i < 3 && err != nil; i++ {
+		time.Sleep(50 * time.Millisecond)
+		err = os.RemoveAll(config1.CopyCatDataDir)
+	}
 	assert.Nil(t, err)
 
 	cc1.Shutdown()
 	err = os.RemoveAll(config1.CopyCatDataDir)
+	for i := 0; i < 3 && err != nil; i++ {
+		time.Sleep(50 * time.Millisecond)
+		err = os.RemoveAll(config1.CopyCatDataDir)
+	}
 	assert.Nil(t, err)
 
 	cc2.Shutdown()
 	err = os.RemoveAll(config2.CopyCatDataDir)
+	for i := 0; i < 3 && err != nil; i++ {
+		time.Sleep(50 * time.Millisecond)
+		err = os.RemoveAll(config1.CopyCatDataDir)
+	}
 	assert.Nil(t, err)
 }

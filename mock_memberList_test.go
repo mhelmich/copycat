@@ -51,6 +51,20 @@ func (_m *mockMemberList) getAddressForRaftId(raftId uint64) string {
 	return r0
 }
 
+// getNumReplicasForDataStructure provides a mock function with given fields: id
+func (_m *mockMemberList) getNumReplicasForDataStructure(id *ID) int {
+	ret := _m.Called(id)
+
+	var r0 int
+	if rf, ok := ret.Get(0).(func(*ID) int); ok {
+		r0 = rf(id)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	return r0
+}
+
 // onePeerForDataStructureId provides a mock function with given fields: dataStructureId
 func (_m *mockMemberList) onePeerForDataStructureId(dataStructureId *ID) (*pb.RaftPeer, error) {
 	ret := _m.Called(dataStructureId)

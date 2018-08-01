@@ -165,10 +165,11 @@ func TestMembershipBasicThreeNodes(t *testing.T) {
 
 func TestMembershipNodeJoin(t *testing.T) {
 	m := &membership{
-		memberIdToTags:           &sync.Map{},
-		serfTagMutex:             &sync.Mutex{},
-		raftIdToAddress:          make(map[uint64]string),
-		dataStructureIdToRaftIds: make(map[ID]map[uint64]bool),
+		memberIdToTags:            &sync.Map{},
+		serfTagMutex:              &sync.Mutex{},
+		raftIdToAddress:           make(map[uint64]string),
+		dataStructureIdToRaftIds:  make(map[ID]map[uint64]bool),
+		dataStructureIdToMetadata: make(map[ID]*pb.DataStructureMetadata),
 		logger: log.WithFields(log.Fields{}),
 		crush:  newCrush(),
 	}
@@ -178,19 +179,25 @@ func TestMembershipNodeJoin(t *testing.T) {
 	port1 := 9876
 	dataStructureId, err := newId()
 	assert.Nil(t, err)
-	mapping1 := make(map[string]uint64)
-	mapping1[dataStructureId.String()] = 66
+	mapping1 := make(map[string]*pb.DataStructureMetadata)
+	mapping1[dataStructureId.String()] = &pb.DataStructureMetadata{
+		RaftId:      66,
+		NumReplicas: 3,
+	}
 	hi1 := &pb.HostedItems{
-		DataStructureToRaftMapping: mapping1,
+		DataStructureIdToMetadata: mapping1,
 	}
 	hostedItems1 := proto.MarshalTextString(hi1)
 	memberId2 := uint64ToString(randomRaftId())
 	hostname2 := "machine2"
 	port2 := 9877
-	mapping2 := make(map[string]uint64)
-	mapping2[dataStructureId.String()] = 88
+	mapping2 := make(map[string]*pb.DataStructureMetadata)
+	mapping2[dataStructureId.String()] = &pb.DataStructureMetadata{
+		RaftId:      88,
+		NumReplicas: 3,
+	}
 	hi2 := &pb.HostedItems{
-		DataStructureToRaftMapping: mapping2,
+		DataStructureIdToMetadata: mapping2,
 	}
 	hostedItems2 := proto.MarshalTextString(hi2)
 
@@ -379,10 +386,10 @@ func TestMembershipAddRemoveDataStructureToRaftIdMapping(t *testing.T) {
 	hi := &pb.HostedItems{}
 	err = proto.UnmarshalText(hostedItems, hi)
 	assert.Nil(t, err)
-	assert.Equal(t, 1, len(hi.DataStructureToRaftMapping))
-	raftIdIRead, ok := hi.DataStructureToRaftMapping[dataStructureId.String()]
+	assert.Equal(t, 1, len(hi.DataStructureIdToMetadata))
+	metadata, ok := hi.DataStructureIdToMetadata[dataStructureId.String()]
 	assert.True(t, ok)
-	assert.Equal(t, raftId, raftIdIRead)
+	assert.Equal(t, raftId, metadata.RaftId)
 
 	err = m.removeDataStructureToRaftIdMapping(raftId)
 	assert.Nil(t, err)
@@ -392,8 +399,8 @@ func TestMembershipAddRemoveDataStructureToRaftIdMapping(t *testing.T) {
 	hi = &pb.HostedItems{}
 	err = proto.UnmarshalText(hostedItems, hi)
 	assert.Nil(t, err)
-	assert.Equal(t, 0, len(hi.DataStructureToRaftMapping))
-	_, ok = hi.DataStructureToRaftMapping[dataStructureId.String()]
+	assert.Equal(t, 0, len(hi.DataStructureIdToMetadata))
+	_, ok = hi.DataStructureIdToMetadata[dataStructureId.String()]
 	assert.False(t, ok)
 
 	err = m.stop()

@@ -181,7 +181,7 @@ func (c *copyCatImpl) subscribeToExistingRaftGroup(dataStructureId *ID, config *
 		return nil, err
 	}
 	// 2. try to contact peers and add the newly created raft to their raft group
-	err = c.membership.addRaftToGroupRemotely(backend.raftId, peer)
+	err = c.membership.addLearnerToRaftGroupRemotely(backend.raftId, peer)
 	// 3. -> profit
 	return backend, err
 }

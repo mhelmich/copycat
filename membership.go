@@ -58,14 +58,17 @@ type membership struct {
 	// you can always fall back to querying the cluster if you want
 	// uint64 - the id of the serf node
 	// map[string]string - all tags of a particular serf node
-	memberIdToTags           *sync.Map
-	raftIdToAddress          map[uint64]string
-	dataStructureIdToRaftIds map[ID]map[uint64]bool
-	crush                    *crush
+	memberIdToTags            *sync.Map
+	raftIdToAddress           map[uint64]string
+	dataStructureIdToRaftIds  map[ID]map[uint64]bool
+	dataStructureIdToMetadata map[ID]*pb.DataStructureMetadata
+	crush                     *crush
 
 	// this sync map mimics the following map: map[uint64]*rate.Limiter
 	serfQueryRaftLimiers *sync.Map
 	logger               *log.Entry
+
+	rehashDataStructureIdChan chan *ID
 }
 
 func newMembership(config *Config) (*membership, error) {
@@ -99,9 +102,7 @@ func newMembership(config *Config) (*membership, error) {
 	serfConfig.Tags[serfMDKeyCopyCatPort] = strconv.Itoa(config.CopyCatPort)
 	serfConfig.Tags[serfMDKeyDataCenter] = config.DataCenter
 	serfConfig.Tags[serfMDKeyRack] = config.Rack
-	serfConfig.Tags[serfMDKeyHostedItems] = proto.MarshalTextString(&pb.HostedItems{
-		DataStructureToRaftMapping: make(map[string]uint64),
-	})
+	serfConfig.Tags[serfMDKeyHostedItems] = proto.MarshalTextString(&pb.HostedItems{})
 
 	surf, err := serf.Create(serfConfig)
 	if err != nil {
@@ -123,15 +124,17 @@ func newMembership(config *Config) (*membership, error) {
 	}
 
 	m := &membership{
-		serfNodeId:               serfNodeId,
-		serf:                     surf,
-		serfTagMutex:             &sync.Mutex{},
-		memberIdToTags:           &sync.Map{},
-		raftIdToAddress:          make(map[uint64]string),
-		dataStructureIdToRaftIds: make(map[ID]map[uint64]bool),
+		serfNodeId:                serfNodeId,
+		serf:                      surf,
+		serfTagMutex:              &sync.Mutex{},
+		memberIdToTags:            &sync.Map{},
+		raftIdToAddress:           make(map[uint64]string),
+		dataStructureIdToRaftIds:  make(map[ID]map[uint64]bool),
+		dataStructureIdToMetadata: make(map[ID]*pb.DataStructureMetadata),
 		crush:                newCrush(),
 		serfQueryRaftLimiers: &sync.Map{},
 		logger:               logger,
+		rehashDataStructureIdChan: make(chan *ID),
 	}
 
 	go m.handleSerfEvents(serfEventCh)
@@ -154,8 +157,10 @@ func (m *membership) handleSerfEvents(serfEventChannel <-chan serf.Event) {
 				m.handleMemberJoinEvent(serfEvent.(serf.MemberEvent))
 			case serf.EventMemberUpdate:
 				m.handleMemberUpdatedEvent(serfEvent.(serf.MemberEvent))
-			case serf.EventMemberLeave, serf.EventMemberFailed:
+			case serf.EventMemberLeave:
 				m.handleMemberLeaveEvent(serfEvent.(serf.MemberEvent))
+			case serf.EventMemberFailed:
+				m.handleMemberFailedEvent(serfEvent.(serf.MemberEvent))
 			case serf.EventQuery:
 				m.handleQuery((serfEvent).(*serf.Query))
 			}
@@ -182,16 +187,17 @@ func (m *membership) handleMemberJoinEvent(me serf.MemberEvent) {
 		memberId := stringToUint64(mem.Name)
 		m.memberIdToTags.Store(memberId, mem.Tags)
 
-		for dsIdStr, raftId := range hi.DataStructureToRaftMapping {
-			m.raftIdToAddress[raftId] = addr
+		for dsIdStr, metadata := range hi.DataStructureIdToMetadata {
 			dsId, _ := parseIdFromString(dsIdStr)
+			m.dataStructureIdToMetadata[*dsId] = metadata
+			m.raftIdToAddress[metadata.RaftId] = addr
 			raftIds, ok := m.dataStructureIdToRaftIds[*dsId]
 			if !ok {
 				raftIds = make(map[uint64]bool)
+				m.dataStructureIdToRaftIds[*dsId] = raftIds
 			}
-			raftIds[raftId] = false
-			m.dataStructureIdToRaftIds[*dsId] = raftIds
-			m.logger.Debugf("Added from [%s] dsId [%s] raft [%d %x] address [%s]", mem.Name, dsIdStr, raftId, raftId, addr)
+			raftIds[metadata.RaftId] = false
+			m.logger.Debugf("Added from [%s] dsId [%s] raft [%d %x] address [%s]", mem.Name, dsIdStr, metadata.RaftId, metadata.RaftId, addr)
 		}
 
 		m.crush.updatePeer(memberId, mem.Tags)
@@ -217,15 +223,19 @@ func (m *membership) handleMemberLeaveEvent(me serf.MemberEvent) {
 		memberId := stringToUint64(mem.Name)
 		m.memberIdToTags.Delete(memberId)
 
-		for dsIdStr, raftId := range hi.DataStructureToRaftMapping {
-			delete(m.raftIdToAddress, raftId)
+		for dsIdStr, metadata := range hi.DataStructureIdToMetadata {
 			dsId, _ := parseIdFromString(dsIdStr)
-			delete(m.dataStructureIdToRaftIds[*dsId], raftId)
-			m.logger.Debugf("Deleted from [%s] dsId [%s] raft [%d %x]", mem.Name, dsIdStr, raftId, raftId)
+			delete(m.dataStructureIdToMetadata, *dsId)
+			delete(m.raftIdToAddress, metadata.RaftId)
+			delete(m.dataStructureIdToRaftIds[*dsId], metadata.RaftId)
 		}
 
 		m.crush.removePeer(memberId, mem.Tags)
 	}
+}
+
+func (m *membership) handleMemberFailedEvent(me serf.MemberEvent) {
+	m.handleMemberLeaveEvent(me)
 }
 
 func (m *membership) handleQuery(query *serf.Query) {
@@ -314,11 +324,14 @@ func (m *membership) addDataStructureToRaftIdMapping(dataStructureId *ID, raftId
 	}
 
 	// protobuf will optimize empty maps away and provoke a seg fault here
-	if hi.DataStructureToRaftMapping == nil {
-		hi.DataStructureToRaftMapping = make(map[string]uint64)
+	if hi.DataStructureIdToMetadata == nil {
+		hi.DataStructureIdToMetadata = make(map[string]*pb.DataStructureMetadata)
 	}
 
-	hi.DataStructureToRaftMapping[dataStructureId.String()] = raftId
+	hi.DataStructureIdToMetadata[dataStructureId.String()] = &pb.DataStructureMetadata{
+		RaftId:      raftId,
+		NumReplicas: 3,
+	}
 
 	// this will update the nodes metadata and broadcast it out
 	// blocks until broadcasting was successful or timed out
@@ -335,18 +348,18 @@ func (m *membership) removeDataStructureToRaftIdMapping(raftId uint64) error {
 		return err
 	}
 
-	if hi.DataStructureToRaftMapping == nil {
+	if hi.DataStructureIdToMetadata == nil {
 		return nil
 	}
 
 	var dataStructureIdToDeleteStr string
-	for dsIdStr, rId := range hi.DataStructureToRaftMapping {
-		if rId == raftId {
+	for dsIdStr, metadata := range hi.DataStructureIdToMetadata {
+		if metadata.RaftId == raftId {
 			dataStructureIdToDeleteStr = dsIdStr
 			break
 		}
 	}
-	delete(hi.DataStructureToRaftMapping, dataStructureIdToDeleteStr)
+	delete(hi.DataStructureIdToMetadata, dataStructureIdToDeleteStr)
 
 	// this will update the nodes metadata and broadcast it out
 	// blocks until broadcasting was successful or timed out
@@ -493,6 +506,15 @@ func (m *membership) getAddressForRaftId(raftId uint64) string {
 		}
 	}
 	return addr
+}
+
+func (m *membership) getNumReplicasForDataStructure(id *ID) int {
+	info, ok := m.dataStructureIdToMetadata[*id]
+	if !ok {
+		return -1
+	}
+
+	return int(info.NumReplicas)
 }
 
 func (m *membership) getAddr(tags map[string]string) string {

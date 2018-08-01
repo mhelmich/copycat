@@ -17,8 +17,10 @@
 package copycat
 
 import (
+	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -41,4 +43,12 @@ func sizeOfMap(m *sync.Map) int {
 	})
 
 	return i
+}
+
+func removeAll(dir string) error {
+	defer func() {
+		time.Sleep(100 * time.Millisecond)
+		os.RemoveAll(dir)
+	}()
+	return nil
 }

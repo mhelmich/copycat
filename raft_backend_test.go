@@ -103,11 +103,11 @@ func TestRaftBackendBasic(t *testing.T) {
 	detachedBackend2.stop()
 	interactiveBackend.stop()
 
-	err = os.RemoveAll(config1.CopyCatDataDir)
+	err = removeAll(config1.CopyCatDataDir)
 	assert.Nil(t, err)
-	err = os.RemoveAll(config2.CopyCatDataDir)
+	err = removeAll(config2.CopyCatDataDir)
 	assert.Nil(t, err)
-	err = os.RemoveAll(config3.CopyCatDataDir)
+	err = removeAll(config3.CopyCatDataDir)
 	assert.Nil(t, err)
 }
 
@@ -207,13 +207,13 @@ func TestRaftBackendAddNewRaftToExistingGroup(t *testing.T) {
 	interactiveBackend1.stop()
 	interactiveBackend2.stop()
 
-	err = os.RemoveAll(config1.CopyCatDataDir)
+	err = removeAll(config1.CopyCatDataDir)
 	assert.Nil(t, err)
-	err = os.RemoveAll(config2.CopyCatDataDir)
+	err = removeAll(config2.CopyCatDataDir)
 	assert.Nil(t, err)
-	err = os.RemoveAll(config3.CopyCatDataDir)
+	err = removeAll(config3.CopyCatDataDir)
 	assert.Nil(t, err)
-	err = os.RemoveAll(config4.CopyCatDataDir)
+	err = removeAll(config4.CopyCatDataDir)
 	assert.Nil(t, err)
 }
 
@@ -244,7 +244,7 @@ func TestRaftBackendTriggerSnapshot(t *testing.T) {
 	assert.Equal(t, 1024, len(snap.Data))
 
 	store.close()
-	os.RemoveAll(dir)
+	removeAll(dir)
 }
 
 func TestRaftBackendPublishSnaphot(t *testing.T) {
@@ -306,7 +306,7 @@ func TestRaftBackendPublishSnaphot(t *testing.T) {
 	mockRaftNode.AssertNumberOfCalls(t, "Advance", 1)
 
 	store.close()
-	os.RemoveAll(dir)
+	removeAll(dir)
 }
 
 func TestRaftBackendAddRaftToGroup(t *testing.T) {
@@ -427,13 +427,13 @@ func TestRaftBackendGracefulShutdownFailover(t *testing.T) {
 		b.stop()
 	}
 
-	err = os.RemoveAll(config1.CopyCatDataDir)
+	err = removeAll(config1.CopyCatDataDir)
 	assert.Nil(t, err)
-	err = os.RemoveAll(config2.CopyCatDataDir)
+	err = removeAll(config2.CopyCatDataDir)
 	assert.Nil(t, err)
-	err = os.RemoveAll(config3.CopyCatDataDir)
+	err = removeAll(config3.CopyCatDataDir)
 	assert.Nil(t, err)
-	err = os.RemoveAll(config4.CopyCatDataDir)
+	err = removeAll(config4.CopyCatDataDir)
 	assert.Nil(t, err)
 }
 
@@ -575,13 +575,13 @@ func TestRaftBackendSplitBrainFailover(t *testing.T) {
 		b.stop()
 	}
 
-	err = os.RemoveAll(config1.CopyCatDataDir)
+	err = removeAll(config1.CopyCatDataDir)
 	assert.Nil(t, err)
-	err = os.RemoveAll(config2.CopyCatDataDir)
+	err = removeAll(config2.CopyCatDataDir)
 	assert.Nil(t, err)
-	err = os.RemoveAll(config3.CopyCatDataDir)
+	err = removeAll(config3.CopyCatDataDir)
 	assert.Nil(t, err)
-	err = os.RemoveAll(config4.CopyCatDataDir)
+	err = removeAll(config4.CopyCatDataDir)
 	assert.Nil(t, err)
 }
 

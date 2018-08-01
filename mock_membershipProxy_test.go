@@ -11,8 +11,8 @@ type mockMembershipProxy struct {
 	mock.Mock
 }
 
-// addRaftToGroupRemotely provides a mock function with given fields: newRaftId, peers
-func (_m *mockMembershipProxy) addRaftToGroupRemotely(newRaftId uint64, peers *pb.RaftPeer) error {
+// addLearnerToRaftGroupRemotely provides a mock function with given fields: newRaftId, peers
+func (_m *mockMembershipProxy) addLearnerToRaftGroupRemotely(newRaftId uint64, peers *pb.RaftPeer) error {
 	ret := _m.Called(newRaftId, peers)
 
 	var r0 error
@@ -25,8 +25,8 @@ func (_m *mockMembershipProxy) addRaftToGroupRemotely(newRaftId uint64, peers *p
 	return r0
 }
 
-// addToRaftGroup provides a mock function with given fields: ctx, existingRaftId, newRaftId
-func (_m *mockMembershipProxy) addToRaftGroup(ctx context.Context, existingRaftId uint64, newRaftId uint64) error {
+// addLearnerToRaftGroup provides a mock function with given fields: ctx, existingRaftId, newRaftId
+func (_m *mockMembershipProxy) addLearnerToRaftGroup(ctx context.Context, existingRaftId uint64, newRaftId uint64) error {
 	ret := _m.Called(ctx, existingRaftId, newRaftId)
 
 	var r0 error

@@ -328,11 +328,54 @@ func TestMembershipCacheAddToRaftGroup(t *testing.T) {
 
 	mc.raftIdToRaftBackend.Store(mockBackend.raftId, mockBackend)
 	// negative test
-	err := mc.addToRaftGroup(context.TODO(), uint64(85), newRaftId)
+	err := mc.addLearnerToRaftGroup(context.TODO(), uint64(85), newRaftId)
 	assert.NotNil(t, err)
 	mockRaftNode.AssertNumberOfCalls(t, "ProposeConfChange", 0)
 	// positive test
-	err = mc.addToRaftGroup(context.TODO(), mockBackend.raftId, newRaftId)
+	err = mc.addLearnerToRaftGroup(context.TODO(), mockBackend.raftId, newRaftId)
 	assert.Nil(t, err)
 	mockRaftNode.AssertNumberOfCalls(t, "ProposeConfChange", 1)
+}
+
+func TestMembershipCacheRehashDataStructureIds(t *testing.T) {
+	numReplicas := 3
+	pickedPeers := make([]uint64, 2)
+	pickedPeers[0] = uint64(12)
+	pickedPeers[1] = uint64(24)
+	// doesn't matter what this actually is, we always return our mock anyways
+	networkAddress := "555_Fake_Street"
+
+	mockMembership := new(mockMemberList)
+	mockMembership.On("getNumReplicasForDataStructure", mock.Anything).Return(numReplicas)
+	mockMembership.On("pickReplicaPeers", mock.Anything, numReplicas, mock.Anything).Return(pickedPeers)
+	mockMembership.On("getAddressForPeer", mock.Anything).Return(networkAddress)
+
+	resp := &pb.StartRaftResponse{}
+	mockClient := new(mockCopyCatServiceClient)
+	mockClient.On("StartRaft", mock.Anything, mock.Anything).Return(resp, nil)
+	mockClient.On("StopRaft", mock.Anything, mock.Anything).Return(nil, nil)
+
+	mc := &membershipCache{
+		membership: mockMembership,
+		newCopyCatServiceClientFunc: func(conn *grpc.ClientConn) pb.CopyCatServiceClient {
+			return mockClient
+		},
+		connectionCacheFunc: func(m *sync.Map, address string) (*grpc.ClientConn, error) {
+			// can't be nil due to error handling in prod code
+			return &grpc.ClientConn{}, nil
+		},
+		logger: log.WithFields(log.Fields{}),
+	}
+
+	ch := make(chan *ID, 1)
+	id, err := newId()
+	assert.Nil(t, err)
+	// toss our id in and close the channel
+	ch <- id
+	close(ch)
+
+	mc.rehashDataStructureIds(ch)
+
+	mockMembership.AssertNumberOfCalls(t, "getNumReplicasForDataStructure", 1)
+	mockClient.AssertNumberOfCalls(t, "StartRaft", len(pickedPeers))
 }

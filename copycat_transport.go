@@ -90,8 +90,13 @@ func (t *copyCatTransport) StopRaft(ctx context.Context, in *pb.StopRaftRequest)
 	return &pb.StopRaftResponse{}, nil
 }
 
-func (t *copyCatTransport) AddRaftToRaftGroup(ctx context.Context, in *pb.AddRaftRequest) (*pb.AddRaftResponse, error) {
-	err := t.membership.addToRaftGroup(ctx, in.ExistingRaftId, in.NewRaftId)
+// TODO: implement me
+func (t *copyCatTransport) AddVoterToRaftGroup(ctx context.Context, in *pb.AddRaftRequest) (*pb.AddRaftResponse, error) {
+	return &pb.AddRaftResponse{}, nil
+}
+
+func (t *copyCatTransport) AddLearnerToRaftGroup(ctx context.Context, in *pb.AddRaftRequest) (*pb.AddRaftResponse, error) {
+	err := t.membership.addLearnerToRaftGroup(ctx, in.ExistingRaftId, in.NewRaftId)
 	return &pb.AddRaftResponse{}, err
 }
 
@@ -112,7 +117,6 @@ func (t *copyCatTransport) Step(stream pb.RaftTransportService_StepServer) error
 		if err != nil {
 			err = fmt.Errorf("Invoking raft backend with id [%d] failed: %s", request.Message.To, err.Error())
 			t.logger.Errorf("%s", err.Error())
-			// TODO - figure out error handling
 			stream.Send(&pb.StepResp{Error: err.Error()})
 		}
 

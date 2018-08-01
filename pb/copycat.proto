@@ -81,7 +81,12 @@ message RaftPeer {
 }
 
 message HostedItems {
-  map<string, uint64> DataStructureToRaftMapping = 1;
+  map<string, DataStructureMetadata> DataStructureIdToMetadata = 1;
+}
+
+message DataStructureMetadata {
+  uint64 RaftId = 1;
+  int32 NumReplicas = 2;
 }
 
 //////////////////////////////////////////
@@ -107,7 +112,8 @@ message StepResp {
 service CopyCatService {
   rpc StartRaft(StartRaftRequest) returns (StartRaftResponse) {}
   rpc StopRaft(StopRaftRequest) returns (StopRaftResponse) {}
-  rpc AddRaftToRaftGroup(AddRaftRequest) returns (AddRaftResponse) {}
+  rpc AddVoterToRaftGroup(AddRaftRequest) returns (AddRaftResponse) {}
+  rpc AddLearnerToRaftGroup(AddRaftRequest) returns (AddRaftResponse) {}
 }
 
 message StartRaftRequest {
