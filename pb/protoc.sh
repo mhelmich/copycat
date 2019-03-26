@@ -20,4 +20,4 @@ protoc \
   -I=$GOPATH/src/github.com/gogo/protobuf \
   -I=$GOPATH/src/github.com/gogo/protobuf/protobuf \
   --gogo_out=plugins=grpc:. \
-  pb/*.proto
+  *.proto
