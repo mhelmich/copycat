@@ -61,7 +61,7 @@ func isMsgSnap(m raftpb.Message) bool {
 	return m.Type == raftpb.MsgSnap
 }
 
-func randomRaftId() uint64 {
+func randomRaftID() uint64 {
 	bites := make([]byte, 8)
 	_, err := rand.Read(bites)
 	if err != nil {

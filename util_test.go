@@ -26,7 +26,7 @@ import (
 )
 
 func TestConversions(t *testing.T) {
-	i := randomRaftId()
+	i := randomRaftID()
 
 	bites := uint64ToBytes(i)
 	assert.Equal(t, i, bytesToUint64(bites))
